@@ -1,4 +1,5 @@
 # MCP Screenshot Server
+[![smithery badge](https://smithery.ai/badge/@sethbang/mcp-screenshot-server)](https://smithery.ai/server/@sethbang/mcp-screenshot-server)
 
 An MCP server implementation that provides screenshot functionality using Puppeteer. This server allows capturing screenshots of web pages and local HTML files through a simple MCP tool interface.
 
@@ -12,6 +13,15 @@ An MCP server implementation that provides screenshot functionality using Puppet
 
 ## Installation
 
+### Installing via Smithery
+
+To install Screenshot Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@sethbang/mcp-screenshot-server):
+
+```bash
+npx -y @smithery/cli install @sethbang/mcp-screenshot-server --client claude
+```
+
+### Manual Installation
 ```bash
 npm install
 ```
