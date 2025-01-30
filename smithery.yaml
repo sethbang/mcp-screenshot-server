@@ -1,0 +1,29 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - url
+    properties:
+      url:
+        type: string
+        description: The URL to capture (can be http://, https://, or file:///).
+      width:
+        type: number
+        description: Viewport width in pixels (1-3840).
+      height:
+        type: number
+        description: Viewport height in pixels (1-2160).
+      fullPage:
+        type: boolean
+        description: Capture full scrollable page.
+      outputPath:
+        type: string
+        description: Custom output path (optional).
+  commandFunction:
+    # A function that produces the CLI command to start the MCP on stdio.
+    |-
+    (config) => ({ command: 'node', args: ['build/index.js'], env: {} })
