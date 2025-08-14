@@ -2,6 +2,10 @@
 
 An MCP server implementation that provides screenshot functionality using Puppeteer. This server allows capturing screenshots of web pages and local HTML files through a simple MCP tool interface.
 
+<a href="https://glama.ai/mcp/servers/@sethbang/mcp-screenshot-server">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@sethbang/mcp-screenshot-server/badge" alt="Screenshot Server MCP server" />
+</a>
+
 ## Features
 
 - Capture screenshots of any web page or local HTML file
