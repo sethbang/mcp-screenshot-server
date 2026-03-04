@@ -12,6 +12,17 @@ import { execFileAsync, commandExists, sleep } from './screenshot-provider.js';
 export class WindowsProvider implements ScreenshotProvider {
   readonly platform = 'Windows';
 
+  private static readonly DPI_AWARE_SNIPPET = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class DpiAwareness {
+    [DllImport("user32.dll")]
+    public static extern bool SetProcessDPIAware();
+}
+"@
+[DpiAwareness]::SetProcessDPIAware() | Out-Null`.trim();
+
   async isAvailable(): Promise<boolean> {
     return commandExists('powershell');
   }
@@ -23,6 +34,7 @@ export class WindowsProvider implements ScreenshotProvider {
     const displayIndex = (opts.display ?? 1) - 1; // Convert 1-based to 0-based
 
     const script = `
+${WindowsProvider.DPI_AWARE_SNIPPET}
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $screens = [System.Windows.Forms.Screen]::AllScreens
@@ -60,6 +72,7 @@ $hwnd = $proc.MainWindowHandle
       : `$hwnd = [IntPtr]::new(${opts.windowId})`;
 
     const script = `
+${WindowsProvider.DPI_AWARE_SNIPPET}
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
 using System;
@@ -100,6 +113,7 @@ $bitmap.Dispose()
     const format = this.dotNetFormat(opts.format);
 
     const script = `
+${WindowsProvider.DPI_AWARE_SNIPPET}
 Add-Type -AssemblyName System.Drawing
 $bitmap = New-Object System.Drawing.Bitmap(${opts.width}, ${opts.height})
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
