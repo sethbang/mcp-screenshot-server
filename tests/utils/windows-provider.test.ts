@@ -30,6 +30,12 @@ describe('WindowsProvider', () => {
   });
 
   describe('captureFullscreen', () => {
+    it('includes DPI awareness snippet', async () => {
+      await provider.captureFullscreen({ outputPath: 'C:\\test.png' });
+      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
+      expect(script).toContain('SetProcessDPIAware');
+    });
+
     it('calls powershell with CopyFromScreen script', async () => {
       await provider.captureFullscreen({ outputPath: 'C:\\Users\\test\\screenshot.png' });
 
@@ -75,6 +81,12 @@ describe('WindowsProvider', () => {
   });
 
   describe('captureWindow', () => {
+    it('includes DPI awareness snippet', async () => {
+      await provider.captureWindow({ outputPath: 'C:\\test.png', windowName: 'Notepad' });
+      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
+      expect(script).toContain('SetProcessDPIAware');
+    });
+
     it('searches for window by name using Get-Process', async () => {
       await provider.captureWindow({ outputPath: 'C:\\test.png', windowName: 'Notepad' });
 
@@ -99,6 +111,15 @@ describe('WindowsProvider', () => {
   });
 
   describe('captureRegion', () => {
+    it('includes DPI awareness snippet', async () => {
+      await provider.captureRegion({
+        outputPath: 'C:\\test.png',
+        x: 0, y: 0, width: 100, height: 100,
+      });
+      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
+      expect(script).toContain('SetProcessDPIAware');
+    });
+
     it('calls powershell with region coordinates', async () => {
       await provider.captureRegion({
         outputPath: 'C:\\test.png',
