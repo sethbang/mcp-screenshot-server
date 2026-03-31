@@ -5,7 +5,7 @@ import { mkdirSync } from 'fs';
 import { join } from 'path';
 
 export { homeDir };
-export const defaultOutDir = join(homeDir, 'Desktop', 'Screenshots');
+export const defaultOutDir = join(homeDir, 'Documents', 'screenshots');
 
 // SINGLETON — the only Semaphore instance in the entire codebase
 export const puppeteerSemaphore = new Semaphore(MAX_CONCURRENT_SCREENSHOTS);
