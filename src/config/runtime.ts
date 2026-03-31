@@ -1,11 +1,16 @@
 
 import { Semaphore } from '../utils/semaphore.js';
-import { MAX_CONCURRENT_SCREENSHOTS, homeDir } from './index.js';
+import { MAX_CONCURRENT_SCREENSHOTS, homeDir, configuredOutDir } from './index.js';
 import { mkdirSync } from 'fs';
-import { join } from 'path';
 
 export { homeDir };
-export const defaultOutDir = join(homeDir, 'Documents', 'screenshots');
+
+/**
+ * Default output directory for screenshots.
+ * Configurable via SCREENSHOT_OUTPUT_DIR environment variable.
+ * Falls back to ~/Documents/screenshots, then ~/Desktop/Screenshots.
+ */
+export const defaultOutDir = configuredOutDir;
 
 // SINGLETON — the only Semaphore instance in the entire codebase
 export const puppeteerSemaphore = new Semaphore(MAX_CONCURRENT_SCREENSHOTS);

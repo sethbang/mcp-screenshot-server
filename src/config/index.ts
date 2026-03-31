@@ -18,8 +18,17 @@ export const MAX_CONCURRENT_SCREENSHOTS = 3;
  */
 export const homeDir = process.env.HOME || '/tmp';
 
+/**
+ * Resolved default output directory for screenshots.
+ * Priority: 1) SCREENSHOT_OUTPUT_DIR env var  2) ~/Documents/screenshots  3) ~/Desktop/Screenshots
+ */
+export const configuredOutDir = process.env.SCREENSHOT_OUTPUT_DIR
+  ? join(homeDir, process.env.SCREENSHOT_OUTPUT_DIR.replace(/^~\/?/, ''))
+  : join(homeDir, 'Documents', 'screenshots');
+
 export const ALLOWED_OUTPUT_DIRS: readonly string[] = [
-  join(homeDir, 'Desktop', 'Screenshots'), // ~/Desktop/Screenshots (default output)
+  join(homeDir, 'Desktop', 'Screenshots'), // ~/Desktop/Screenshots (original default)
+  configuredOutDir,                         // Configured default output directory
   '/tmp',                                   // System temp directory
   join(homeDir, 'Downloads'),               // ~/Downloads
   join(homeDir, 'Documents'),               // ~/Documents
