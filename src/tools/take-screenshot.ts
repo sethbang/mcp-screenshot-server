@@ -63,7 +63,11 @@ export function registerTakeScreenshot(server: McpServer): void {
           '--disable-setuid-sandbox',
         ];
         if (urlValidation.resolvedIp && urlValidation.hostname) {
-          browserArgs.push(`--host-resolver-rules=MAP ${urlValidation.hostname} ${urlValidation.resolvedIp}`);
+          // Chromium requires bracket notation for IPv6 addresses in host-resolver-rules
+          const pinnedIp = urlValidation.resolvedIp.includes(':')
+            ? `[${urlValidation.resolvedIp}]`
+            : urlValidation.resolvedIp;
+          browserArgs.push(`--host-resolver-rules=MAP ${urlValidation.hostname} ${pinnedIp}`);
         }
         browser = await puppeteer.launch({ headless: true, args: browserArgs });
         const page = await browser.newPage();

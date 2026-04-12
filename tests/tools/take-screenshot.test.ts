@@ -61,9 +61,11 @@ vi.mock('puppeteer', () => ({
   },
 }));
 
+import puppeteer from 'puppeteer';
 import { validateUrl } from '../../src/validators/url.js';
 import { validateOutputPath } from '../../src/validators/path.js';
 
+const mockLaunch = vi.mocked(puppeteer.launch);
 const mockValidateUrl = vi.mocked(validateUrl);
 const mockValidateOutputPath = vi.mocked(validateOutputPath);
 
@@ -206,4 +208,43 @@ describe('take-screenshot', () => {
     expect(mockSemaphore.release).toHaveBeenCalled();
   });
 
+  it('pins IPv4 address in host-resolver-rules without brackets', async () => {
+    mockValidateUrl.mockResolvedValueOnce({
+      valid: true,
+      resolvedIp: '93.184.216.34',
+      hostname: 'example.com',
+    });
+    mockValidateOutputPath.mockResolvedValueOnce({
+      valid: true,
+      path: '/home/user/Desktop/Screenshots/screenshot.png',
+    });
+
+    await capturedHandler({ url: 'https://example.com' });
+
+    expect(mockLaunch).toHaveBeenCalledWith(expect.objectContaining({
+      args: expect.arrayContaining([
+        '--host-resolver-rules=MAP example.com 93.184.216.34',
+      ]),
+    }));
+  });
+
+  it('wraps IPv6 address in brackets for host-resolver-rules', async () => {
+    mockValidateUrl.mockResolvedValueOnce({
+      valid: true,
+      resolvedIp: '2001:db8::1',
+      hostname: 'ipv6host.example',
+    });
+    mockValidateOutputPath.mockResolvedValueOnce({
+      valid: true,
+      path: '/home/user/Desktop/Screenshots/screenshot.png',
+    });
+
+    await capturedHandler({ url: 'https://ipv6host.example' });
+
+    expect(mockLaunch).toHaveBeenCalledWith(expect.objectContaining({
+      args: expect.arrayContaining([
+        '--host-resolver-rules=MAP ipv6host.example [2001:db8::1]',
+      ]),
+    }));
+  });
 });
