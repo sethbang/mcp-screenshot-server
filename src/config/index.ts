@@ -12,6 +12,13 @@ import { join } from 'path';
 export const MAX_CONCURRENT_SCREENSHOTS = 3;
 
 /**
+ * When true, allows loopback addresses (127.x.x.x, ::1, localhost) in URL validation.
+ * All other private/reserved ranges remain blocked regardless of this setting.
+ * Useful for screenshotting local dev servers. Off by default for SSRF safety.
+ */
+export const ALLOW_LOCAL: boolean = process.env.ALLOW_LOCAL === 'true';
+
+/**
  * Resolved allowed output directories for screenshots.
  * Only these directories (and their subdirectories) are permitted for file output.
  * Uses process.env.HOME at module load time (pure computation, no I/O side effects).

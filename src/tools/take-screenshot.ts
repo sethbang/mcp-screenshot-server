@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import puppeteer from 'puppeteer';
 import { puppeteerSemaphore, defaultOutDir, ensureDefaultDirectory } from '../config/runtime.js';
-import { ALLOWED_OUTPUT_DIRS, MAX_CONCURRENT_SCREENSHOTS } from '../config/index.js';
+import { ALLOWED_OUTPUT_DIRS, MAX_CONCURRENT_SCREENSHOTS, ALLOW_LOCAL } from '../config/index.js';
 import { validateUrl } from '../validators/url.js';
 import { validateOutputPath } from '../validators/path.js';
 import { ok, err, timestamp, ensureDir } from '../utils/helpers.js';
@@ -30,7 +30,7 @@ export function registerTakeScreenshot(server: McpServer): void {
 
       // Security: Validate URL before making request (SSRF prevention)
       // Now async to support DNS resolution for DNS rebinding protection (SEC-001)
-      const urlValidation = await validateUrl(url);
+      const urlValidation = await validateUrl(url, { allowLocal: ALLOW_LOCAL });
       if (!urlValidation.valid) {
         return err(`URL validation failed: ${urlValidation.error}`);
       }
@@ -87,7 +87,7 @@ export function registerTakeScreenshot(server: McpServer): void {
                 return;
               }
               // Validate redirect target against SSRF rules
-              const redirectValidation = await validateUrl(reqUrl);
+              const redirectValidation = await validateUrl(reqUrl, { allowLocal: ALLOW_LOCAL });
               if (!redirectValidation.valid) {
                 req.abort('blockedbyclient');
                 return;

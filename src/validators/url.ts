@@ -12,6 +12,45 @@ const defaultDnsResolver: DnsResolver = {
   lookup: (hostname, options) => dns.lookup(hostname, options),
 };
 
+/** Options for URL validation. */
+export interface ValidateUrlOptions {
+  /** Allow loopback addresses (127.x, ::1, localhost). Other private ranges stay blocked. */
+  allowLocal?: boolean;
+  /** Custom DNS resolver for testing. */
+  dnsResolver?: DnsResolver;
+}
+
+/** Check if an IP is a loopback address. */
+function isLoopback(ip: string, family: 4 | 6): boolean {
+  if (family === 4) {
+    return /^127\./.test(ip);
+  }
+  const normalized = ip.toLowerCase();
+  if (normalized === '::1') return true;
+  // ::ffff:127.x.x.x (dotted form)
+  if (/^::ffff:127\./.test(normalized)) return true;
+  // ::ffff:7f00:0 through ::ffff:7fff:ffff (hex form for 127.0.0.0/8)
+  const hexMatch = normalized.match(/^::ffff:([0-9a-f]{1,4}):[0-9a-f]{1,4}$/);
+  if (hexMatch) {
+    const high = parseInt(hexMatch[1], 16);
+    if ((high >> 8) === 127) return true;
+  }
+  return false;
+}
+
+/** Wrapper that applies the allowLocal policy over isBlockedIPv4/isBlockedIPv6. */
+function shouldBlockIp(
+  ip: string,
+  family: 4 | 6,
+  allowLocal: boolean,
+): { blocked: boolean; reason?: string } {
+  const result = family === 4 ? isBlockedIPv4(ip) : isBlockedIPv6(ip);
+  if (result.blocked && allowLocal && isLoopback(ip, family)) {
+    return { blocked: false };
+  }
+  return result;
+}
+
 /** Check if an IPv4 address is in a blocked range. */
 export function isBlockedIPv4(ip: string): { blocked: boolean; reason?: string } {
   const ipv4Match = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
@@ -130,8 +169,10 @@ export function isBlockedIPv6(ip: string): { blocked: boolean; reason?: string }
  */
 export async function validateUrl(
   urlString: string,
-  dnsResolver: DnsResolver = defaultDnsResolver,
+  options?: ValidateUrlOptions,
 ): Promise<UrlValidationResult> {
+  const allowLocal = options?.allowLocal ?? false;
+  const dnsResolver = options?.dnsResolver ?? defaultDnsResolver;
   let parsed: URL;
   try {
     parsed = new URL(urlString);
@@ -146,14 +187,15 @@ export async function validateUrl(
 
   const hostname = parsed.hostname.toLowerCase();
 
-  // Block localhost by name
-  if (hostname === 'localhost' || hostname === 'localhost.localdomain') {
-    return { valid: false, error: 'Access to localhost is not allowed' };
-  }
+  // Block localhost by name (unless allowLocal is enabled)
+  if (!allowLocal) {
+    if (hostname === 'localhost' || hostname === 'localhost.localdomain') {
+      return { valid: false, error: 'Access to localhost is not allowed' };
+    }
 
-  // Block IPv6 localhost in bracket notation
-  if (hostname === '[::1]') {
-    return { valid: false, error: 'Access to IPv6 localhost is not allowed' };
+    if (hostname === '[::1]') {
+      return { valid: false, error: 'Access to IPv6 localhost is not allowed' };
+    }
   }
 
   // Check if hostname is a literal IP address
@@ -162,7 +204,7 @@ export async function validateUrl(
 
   if (isLiteralIPv4) {
     // Direct IPv4 - validate immediately
-    const ipCheck = isBlockedIPv4(hostname);
+    const ipCheck = shouldBlockIp(hostname, 4, allowLocal);
     if (ipCheck.blocked) {
       return { valid: false, error: ipCheck.reason };
     }
@@ -172,7 +214,7 @@ export async function validateUrl(
   if (isLiteralIPv6) {
     // Direct IPv6 - validate immediately (strip brackets)
     const ipv6 = hostname.slice(1, -1);
-    const ipCheck = isBlockedIPv6(ipv6);
+    const ipCheck = shouldBlockIp(ipv6, 6, allowLocal);
     if (ipCheck.blocked) {
       return { valid: false, error: ipCheck.reason };
     }
@@ -192,14 +234,8 @@ export async function validateUrl(
     // Check ALL resolved IPs - if any is blocked, reject the entire request
     let firstNonBlockedIp: string | undefined;
     for (const addr of addresses) {
-      if (addr.family === 4) {
-        const ipCheck = isBlockedIPv4(addr.address);
-        if (ipCheck.blocked) {
-          return { valid: false, error: `DNS resolved to blocked IP: ${ipCheck.reason}` };
-        }
-        if (!firstNonBlockedIp) firstNonBlockedIp = addr.address;
-      } else if (addr.family === 6) {
-        const ipCheck = isBlockedIPv6(addr.address);
+      if (addr.family === 4 || addr.family === 6) {
+        const ipCheck = shouldBlockIp(addr.address, addr.family, allowLocal);
         if (ipCheck.blocked) {
           return { valid: false, error: `DNS resolved to blocked IP: ${ipCheck.reason}` };
         }

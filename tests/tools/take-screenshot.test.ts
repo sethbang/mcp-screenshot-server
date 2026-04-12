@@ -18,6 +18,7 @@ vi.mock('../../src/config/runtime.js', () => ({
 vi.mock('../../src/config/index.js', () => ({
   ALLOWED_OUTPUT_DIRS: ['/home/user/Desktop/Screenshots', '/tmp'],
   MAX_CONCURRENT_SCREENSHOTS: 3,
+  ALLOW_LOCAL: false,
 }));
 
 vi.mock('../../src/validators/url.js', () => ({
@@ -204,4 +205,5 @@ describe('take-screenshot', () => {
     expect(result.content[0].text).toContain('Screenshot saved');
     expect(mockSemaphore.release).toHaveBeenCalled();
   });
+
 });

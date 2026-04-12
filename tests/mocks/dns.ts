@@ -17,6 +17,10 @@ export function createMockDns(responses: Map<string, LookupAddress[]>): DnsResol
 
 export const mockDns = {
   localhost: createMockDns(new Map([['evil.com', [{ address: '127.0.0.1', family: 4 }]]])),
+  localhostReal: createMockDns(new Map([
+    ['localhost', [{ address: '127.0.0.1', family: 4 }]],
+    ['localhost.localdomain', [{ address: '127.0.0.1', family: 4 }]],
+  ])),
   public: createMockDns(new Map([['example.com', [{ address: '93.184.216.34', family: 4 }]]])),
   nxdomain: createMockDns(new Map()),
   timeout: {

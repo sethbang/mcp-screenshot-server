@@ -112,7 +112,7 @@ describe('isBlockedIPv6', () => {
 
 describe('validateUrl', () => {
   it('accepts a valid public URL', async () => {
-    const result = await validateUrl('https://example.com', mockDns.public);
+    const result = await validateUrl('https://example.com', { dnsResolver: mockDns.public });
     expect(result).toEqual({
       valid: true,
       resolvedIp: '93.184.216.34',
@@ -121,19 +121,19 @@ describe('validateUrl', () => {
   });
 
   it('rejects URL resolving to localhost', async () => {
-    const result = await validateUrl('https://evil.com', mockDns.localhost);
+    const result = await validateUrl('https://evil.com', { dnsResolver: mockDns.localhost });
     expect(result.valid).toBe(false);
     expect(result.error).toContain('blocked IP');
   });
 
   it('rejects NXDOMAIN', async () => {
-    const result = await validateUrl('https://nonexistent.example', mockDns.nxdomain);
+    const result = await validateUrl('https://nonexistent.example', { dnsResolver: mockDns.nxdomain });
     expect(result.valid).toBe(false);
     expect(result.error).toContain('DNS resolution failed');
   });
 
   it('rejects DNS timeout', async () => {
-    const result = await validateUrl('https://example.com', mockDns.timeout);
+    const result = await validateUrl('https://example.com', { dnsResolver: mockDns.timeout });
     expect(result.valid).toBe(false);
     expect(result.error).toContain('DNS resolution failed');
   });
@@ -188,7 +188,7 @@ describe('validateUrl', () => {
     const dns = createMockDns(new Map([
       ['mysite.org', [{ address: '1.2.3.4', family: 4 }]],
     ]));
-    const result = await validateUrl('https://mysite.org/page', dns);
+    const result = await validateUrl('https://mysite.org/page', { dnsResolver: dns });
     expect(result.valid).toBe(true);
     expect(result.resolvedIp).toBe('1.2.3.4');
     expect(result.hostname).toBe('mysite.org');
@@ -201,7 +201,7 @@ describe('validateUrl', () => {
         { address: '10.0.0.6', family: 4 },
       ]],
     ]));
-    const result = await validateUrl('https://internal.corp', dns);
+    const result = await validateUrl('https://internal.corp', { dnsResolver: dns });
     expect(result.valid).toBe(false);
   });
 
@@ -212,7 +212,96 @@ describe('validateUrl', () => {
         { address: '127.0.0.1', family: 4 },
       ]],
     ]));
-    const result = await validateUrl('https://mixed.example', dns);
+    const result = await validateUrl('https://mixed.example', { dnsResolver: dns });
+    expect(result.valid).toBe(false);
+  });
+});
+
+describe('validateUrl with allowLocal', () => {
+  it('allows localhost:3000 when allowLocal is true', async () => {
+    const result = await validateUrl('http://localhost:3000', {
+      allowLocal: true,
+      dnsResolver: mockDns.localhostReal,
+    });
+    expect(result.valid).toBe(true);
+    expect(result.resolvedIp).toBe('127.0.0.1');
+    expect(result.hostname).toBe('localhost');
+  });
+
+  it('allows localhost.localdomain when allowLocal is true', async () => {
+    const result = await validateUrl('http://localhost.localdomain', {
+      allowLocal: true,
+      dnsResolver: mockDns.localhostReal,
+    });
+    expect(result.valid).toBe(true);
+    expect(result.resolvedIp).toBe('127.0.0.1');
+  });
+
+  it('allows direct 127.0.0.1 when allowLocal is true', async () => {
+    const result = await validateUrl('http://127.0.0.1:5173', { allowLocal: true });
+    expect(result.valid).toBe(true);
+    expect(result.resolvedIp).toBe('127.0.0.1');
+  });
+
+  it('allows other 127.x addresses when allowLocal is true', async () => {
+    const result = await validateUrl('http://127.99.99.99', { allowLocal: true });
+    expect(result.valid).toBe(true);
+    expect(result.resolvedIp).toBe('127.99.99.99');
+  });
+
+  it('allows [::1] when allowLocal is true', async () => {
+    const result = await validateUrl('http://[::1]:8080', { allowLocal: true });
+    expect(result.valid).toBe(true);
+    expect(result.resolvedIp).toBe('::1');
+  });
+
+  it('still blocks private IPs when allowLocal is true', async () => {
+    expect((await validateUrl('http://192.168.1.1', { allowLocal: true })).valid).toBe(false);
+    expect((await validateUrl('http://10.0.0.1', { allowLocal: true })).valid).toBe(false);
+    expect((await validateUrl('http://172.16.0.1', { allowLocal: true })).valid).toBe(false);
+  });
+
+  it('still blocks cloud metadata when allowLocal is true', async () => {
+    const result = await validateUrl('http://169.254.169.254', { allowLocal: true });
+    expect(result.valid).toBe(false);
+  });
+
+  it('still blocks CGNAT when allowLocal is true', async () => {
+    const result = await validateUrl('http://100.64.0.1', { allowLocal: true });
+    expect(result.valid).toBe(false);
+  });
+
+  it('allows DNS resolving to loopback when allowLocal is true', async () => {
+    const result = await validateUrl('https://evil.com', {
+      allowLocal: true,
+      dnsResolver: mockDns.localhost,
+    });
+    expect(result.valid).toBe(true);
+    expect(result.resolvedIp).toBe('127.0.0.1');
+  });
+
+  it('still blocks DNS resolving to private IP when allowLocal is true', async () => {
+    const dns = createMockDns(new Map([
+      ['internal.corp', [{ address: '10.0.0.5', family: 4 }]],
+    ]));
+    const result = await validateUrl('https://internal.corp', {
+      allowLocal: true,
+      dnsResolver: dns,
+    });
+    expect(result.valid).toBe(false);
+  });
+
+  it('blocks mixed DNS results with loopback + private when allowLocal is true', async () => {
+    const dns = createMockDns(new Map([
+      ['mixed.example', [
+        { address: '127.0.0.1', family: 4 },
+        { address: '10.0.0.1', family: 4 },
+      ]],
+    ]));
+    const result = await validateUrl('https://mixed.example', {
+      allowLocal: true,
+      dnsResolver: dns,
+    });
     expect(result.valid).toBe(false);
   });
 });
