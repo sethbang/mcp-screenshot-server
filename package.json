@@ -45,6 +45,7 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:linux": "bash scripts/run-linux-tests.sh",
     "test:all": "vitest run --config vitest.all.config.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
