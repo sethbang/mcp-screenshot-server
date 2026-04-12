@@ -13,16 +13,25 @@ Published to npm as `universal-screenshot-mcp`.
 ## Commands
 
 ```bash
-npm run build          # TypeScript → build/ (also runs on npm install via "prepare")
-npm run watch          # Recompile on change
-npm test               # Run all tests (vitest run)
-npm run test:watch     # Watch mode
-npm run test:coverage  # With coverage
-npm run lint           # ESLint on src/
-npm run inspector      # Launch MCP Inspector for interactive tool debugging
+npm run build            # TypeScript → build/ (also runs on npm install via "prepare")
+npm run watch            # Recompile on change
+npm test                 # Unit tests only (fast, fully mocked)
+npm run test:integration # Integration tests (real DNS, real filesystem)
+npm run test:e2e         # E2E tests (real Puppeteer, real screencapture)
+npm run test:all         # All tiers together
+npm run test:linux       # Linux e2e via Docker (Xvfb + maim/scrot/import)
+npm run test:watch       # Watch mode
+npm run test:coverage    # With coverage
+npm run lint             # ESLint on src/
+npm run inspector        # Launch MCP Inspector for interactive tool debugging
 ```
 
 Run a single test file: `npx vitest run tests/validators/url.test.ts`
+
+## Environment Variables
+
+- **`ALLOW_LOCAL=true`** — Permit loopback addresses (127.x.x.x, ::1, localhost) through SSRF validation. Useful for screenshotting local dev servers. Off by default.
+- **`SCREENSHOT_OUTPUT_DIR`** — Override the default screenshot output directory (relative to `~`). Defaults to `~/Documents/screenshots`.
 
 ## Architecture
 
@@ -51,4 +60,18 @@ All providers use `execFile` (no shell) to prevent command injection (SEC-003).
 
 ## Testing
 
-Tests live in `tests/` mirroring `src/` structure. Uses Vitest with full dependency injection — **no real network, filesystem, or subprocess calls**. Shared mocks are in `tests/mocks/` (dns, fs, child-process). When adding tests, follow the existing DI pattern rather than mocking modules globally.
+Three-tier test architecture with separate vitest configs:
+
+| Tier | Pattern | What's real | Command |
+|------|---------|-------------|---------|
+| Unit | `*.test.ts` | Nothing — full DI mocks | `npm test` |
+| Integration | `*.integration.test.ts` | DNS, filesystem, Puppeteer | `npm run test:integration` |
+| E2E | `*.e2e.test.ts` | Everything incl. native tools | `npm run test:e2e` |
+
+Tests live in `tests/` mirroring `src/` structure. Shared mocks are in `tests/mocks/` (dns, fs, child-process). Test helpers (`tests/helpers/`) provide a temp directory factory and a local HTTP test server.
+
+Unit tests use full dependency injection — **no real network, filesystem, or subprocess calls**. When adding unit tests, follow the existing DI pattern rather than mocking modules globally.
+
+### Docker-based Linux testing
+
+`npm run test:linux` builds a Docker image (`Dockerfile.linux-test`) with Xvfb, maim, scrot, ImageMagick, and xdotool, then runs the e2e suite inside it. This is the only way to test the Linux screenshot provider locally on macOS.

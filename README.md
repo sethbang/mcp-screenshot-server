@@ -112,7 +112,7 @@ Captures a web page (or a specific element) via a headless Puppeteer browser.
 | `selector`        | string  | —        | CSS selector to capture a specific element        |
 | `waitForSelector` | string  | —        | Wait for this selector before capturing          |
 | `waitForTimeout`  | number  | —        | Delay in milliseconds (0–30000)                  |
-| `outputPath`      | string  | —        | Output file path (default: `~/Desktop/Screenshots`) |
+| `outputPath`      | string  | —        | Output file path (default: `~/Documents/screenshots`) |
 
 **Example prompt:**
 > Take a screenshot of https://example.com at 1920x1080
@@ -131,7 +131,7 @@ Captures the desktop, a specific application window, or a screen region using na
 | `includeCursor` | boolean | —        | Include the mouse cursor in the capture                  |
 | `format`        | enum    | —        | `png` (default) or `jpg`                                 |
 | `delay`         | number  | —        | Capture delay in seconds (0–10)                          |
-| `outputPath`    | string  | —        | Output file path (default: `~/Desktop/Screenshots`)      |
+| `outputPath`    | string  | —        | Output file path (default: `~/Documents/screenshots`)    |
 
 #### Cross-Platform Feature Support
 
@@ -148,13 +148,23 @@ Captures the desktop, a specific application window, or a screen region using na
 **Example prompt:**
 > Take a system screenshot of the Safari window
 
-## Output Directories
+## Configuration
 
-Screenshots are saved to `~/Desktop/Screenshots` by default. Custom output paths must resolve to one of these allowed directories:
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SCREENSHOT_OUTPUT_DIR` | `Documents/screenshots` | Default output directory relative to `~` |
+| `ALLOW_LOCAL` | `false` | Set to `true` to allow screenshotting `localhost`/`127.x.x.x`/`[::1]` (useful for local dev servers) |
+
+### Output Directories
+
+Screenshots are saved to `~/Documents/screenshots` by default (configurable via `SCREENSHOT_OUTPUT_DIR`). Custom output paths must resolve to one of these allowed directories:
 
 | Directory              | Description              |
 |------------------------|--------------------------|
-| `~/Desktop/Screenshots`| Default output location  |
+| `~/Documents/screenshots` | Default output location (configurable) |
+| `~/Desktop/Screenshots`| Original default location |
 | `~/Downloads`          | User downloads folder    |
 | `~/Documents`          | User documents folder    |
 | `/tmp`                 | System temp directory    |
@@ -176,15 +186,19 @@ For full details, see [`docs/security.md`](docs/security.md).
 
 ### Scripts
 
-| Command              | Description                       |
-|----------------------|-----------------------------------|
-| `npm run build`      | Compile TypeScript to `build/`    |
-| `npm run watch`      | Recompile on file changes         |
-| `npm test`           | Run tests with Vitest             |
-| `npm run test:watch` | Run tests in watch mode           |
-| `npm run test:coverage` | Run tests with coverage report |
-| `npm run lint`       | Lint source with ESLint           |
-| `npm run inspector`  | Launch MCP Inspector for debugging|
+| Command              | Description                            |
+|----------------------|----------------------------------------|
+| `npm run build`      | Compile TypeScript to `build/`         |
+| `npm run watch`      | Recompile on file changes              |
+| `npm test`           | Unit tests (fast, fully mocked)        |
+| `npm run test:integration` | Integration tests (real DNS/filesystem) |
+| `npm run test:e2e`   | E2E tests (real Puppeteer/native tools)|
+| `npm run test:all`   | All test tiers together                |
+| `npm run test:linux` | Linux e2e via Docker (requires Docker) |
+| `npm run test:watch` | Run tests in watch mode                |
+| `npm run test:coverage` | Run tests with coverage report      |
+| `npm run lint`       | Lint source with ESLint                |
+| `npm run inspector`  | Launch MCP Inspector for debugging     |
 
 ### Project Structure
 
@@ -215,10 +229,16 @@ src/
 
 ### Testing
 
-Tests use [Vitest](https://vitest.dev/) with full dependency injection — no real network calls, filesystem access, or subprocess execution in tests.
+Tests use [Vitest](https://vitest.dev/) in three tiers:
+
+- **Unit** (`npm test`) — Full dependency injection, no real I/O. Fast feedback loop.
+- **Integration** (`npm run test:integration`) — Real DNS resolution, real filesystem with temp directories, real Puppeteer against a local HTTP server.
+- **E2E** (`npm run test:e2e`) — Real native screenshot tools. macOS tests run natively; Linux tests run in Docker via `npm run test:linux`.
 
 ```bash
-npm test
+npm test                 # Unit tests (~300ms)
+npm run test:linux       # Linux provider tests in Docker
+npm run test:all         # Everything
 ```
 
 ### Debugging with MCP Inspector
