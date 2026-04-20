@@ -5,12 +5,29 @@
 import type { ScreenshotProvider, CaptureOptions, WindowTarget, RegionTarget } from './screenshot-provider.js';
 import { execFileAsync, commandExists, sleep } from './screenshot-provider.js';
 
+const POWERSHELL_FALLBACK_PATHS = [
+  'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+  'C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe',
+];
+
+async function resolvePowerShell(): Promise<string | null> {
+  if (await commandExists('powershell')) return 'powershell';
+  for (const p of POWERSHELL_FALLBACK_PATHS) {
+    try {
+      await execFileAsync(p, ['-Command', 'echo ok']);
+      return p;
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
 /**
  * Windows screenshot provider using PowerShell with .NET System.Drawing.
  * Zero external dependencies — PowerShell and .NET are built into all modern Windows.
  */
 export class WindowsProvider implements ScreenshotProvider {
   readonly platform = 'Windows';
+  private powershellPath: string | null = null;
 
   private static readonly DPI_AWARE_SNIPPET = `
 Add-Type -TypeDefinition @"
@@ -26,7 +43,8 @@ public class DpiAwareness {
 try { [DpiAwareness]::SetProcessDpiAwarenessContext([IntPtr]::new(-4)) | Out-Null } catch { [DpiAwareness]::SetProcessDPIAware() | Out-Null }`.trim();
 
   async isAvailable(): Promise<boolean> {
-    return commandExists('powershell');
+    this.powershellPath = await resolvePowerShell();
+    return this.powershellPath !== null;
   }
 
   async captureFullscreen(opts: CaptureOptions): Promise<void> {
@@ -141,7 +159,8 @@ $bitmap.Dispose()
   // ── Private helpers ────────────────────────────────────────────────────
 
   private async runPowerShell(script: string): Promise<void> {
-    await execFileAsync('powershell', [
+    const cmd = this.powershellPath ?? 'powershell';
+    await execFileAsync(cmd, [
       '-ExecutionPolicy', 'Bypass',
       '-NoProfile',
       '-NonInteractive',
