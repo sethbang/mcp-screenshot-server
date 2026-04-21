@@ -160,11 +160,12 @@ $bitmap.Dispose()
 
   private async runPowerShell(script: string): Promise<void> {
     const cmd = this.powershellPath ?? 'powershell';
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
     await execFileAsync(cmd, [
       '-ExecutionPolicy', 'Bypass',
       '-NoProfile',
       '-NonInteractive',
-      '-Command', script,
+      '-EncodedCommand', encoded,
     ]);
   }
 
