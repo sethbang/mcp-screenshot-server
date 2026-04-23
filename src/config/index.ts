@@ -24,7 +24,7 @@ export const ALLOW_LOCAL: boolean = process.env.ALLOW_LOCAL === 'true';
  * Only these directories (and their subdirectories) are permitted for file output.
  * os.homedir() works cross-platform (USERPROFILE on Windows, HOME on Unix).
  */
-export const homeDir = process.env.HOME || homedir() || '/tmp';
+export const homeDir = process.env.HOME || homedir();
 
 /**
  * Resolved default output directory for screenshots.
