@@ -7,9 +7,27 @@ on:
     branches: [main]
 
 jobs:
-  unit:
-    name: Unit Tests
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+
+  unit:
+    name: Unit Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
 
