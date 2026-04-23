@@ -24,6 +24,7 @@ export class LinuxProvider implements ScreenshotProvider {
 
   async captureFullscreen(opts: CaptureOptions): Promise<void> {
     const backend = await this.getBackend();
+    this.assertSupportedOptions(opts);
     if (opts.delay && opts.delay > 0) await sleep(opts.delay);
 
     switch (backend) {
@@ -55,6 +56,7 @@ export class LinuxProvider implements ScreenshotProvider {
 
   async captureWindow(opts: CaptureOptions & WindowTarget): Promise<void> {
     const backend = await this.getBackend();
+    this.assertSupportedOptions(opts);
     if (opts.delay && opts.delay > 0) await sleep(opts.delay);
 
     // Try to resolve window ID from name using xdotool (X11 only)
@@ -107,6 +109,7 @@ export class LinuxProvider implements ScreenshotProvider {
 
   async captureRegion(opts: CaptureOptions & RegionTarget): Promise<void> {
     const backend = await this.getBackend();
+    this.assertSupportedOptions(opts);
     if (opts.delay && opts.delay > 0) await sleep(opts.delay);
 
     const geometry = `${opts.width}x${opts.height}+${opts.x}+${opts.y}`;
@@ -147,6 +150,16 @@ export class LinuxProvider implements ScreenshotProvider {
   }
 
   // ── Private helpers ────────────────────────────────────────────────────
+
+  private assertSupportedOptions(opts: CaptureOptions): void {
+    if (opts.includeCursor) {
+      throw new Error(
+        'Linux provider does not support includeCursor — none of the supported backends ' +
+        '(maim, scrot, gnome-screenshot, spectacle, grim, import) expose a cursor flag in our argv. ' +
+        'Use macOS or Windows for cursor capture.'
+      );
+    }
+  }
 
   private async detectBackend(): Promise<void> {
     if (this._detected) return;

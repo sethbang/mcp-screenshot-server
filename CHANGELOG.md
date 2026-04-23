@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-04-22
+
+### Changed
+
+- Tool descriptions for `take_screenshot` and `take_system_screenshot` now correctly advertise `~/Documents/screenshots` as the default output directory and mention the `SCREENSHOT_OUTPUT_DIR` env var (had been stale since v1.1.0).
+- Path validation error message no longer hardcodes `/tmp`; says "system temp directory" so it's accurate on Windows.
+- Linux provider now throws a clear error when `includeCursor: true` is requested, instead of silently dropping the option. None of the supported Linux backends (maim, scrot, gnome-screenshot, spectacle, grim, import) exposes a cursor flag in our argv shape. `format` continues to work via the output-path extension.
+
+### Fixed
+
+- **Windows: DPI awareness and multi-monitor virtual screen capture.** Previously screenshots on high-DPI Windows displays could be cropped, scaled incorrectly, or miss secondary monitors. *(PR #8 from @Supremesir)*
+- **Windows: Fall back to absolute PowerShell path** (`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`) when `powershell` is not on `PATH`. Fixes the "No screenshot tools found for Windows" error when the server runs as a subprocess via the Agent Client Protocol with a minimal inherited `PATH`. *(PR #8 from @Supremesir)*
+- **Windows: Cross-platform home directory resolution** — replaced `process.env.HOME || '/tmp'` with `os.homedir()` so screenshots no longer get written to `C:\tmp\Documents\screenshots` on Windows. *(PR #8 from @Supremesir)*
+- **Windows: Unicode (CJK) window names** — switched the PowerShell invocation from `-Command` to `-EncodedCommand` (base64 UTF-16LE) so non-ASCII window names like `微信` survive the ANSI codepage on non-English Windows. *(PR #8 from @Supremesir)*
+- **Path validator (Windows): cross-drive containment bypass.** Containment check used `relativePath.startsWith('/')` to detect when `path.relative()` returned an absolute path. On Windows that path looks like `D:\other\foo`, which doesn't start with `/`, allowing cross-drive paths to incorrectly pass validation. Replaced with `path.isAbsolute()`.
+- **`display` parameter validation.** Zod schema for `take_system_screenshot` accepted non-integer values (`z.number().min(1)`), which would interpolate floats into the PowerShell `$screens[${i}]` template on Windows. Now `z.number().int().min(1)`.
+
+## [1.1.1] - 2026-04-12
+
+### Fixed
+
+- CI: Added `--provenance` flag for npm OIDC trusted publishing so `npm publish` succeeds under the GitHub Actions OIDC publish flow.
+
+## [1.1.0] - 2026-04-12
+
+### Added
+
+- **`SCREENSHOT_OUTPUT_DIR` environment variable** to configure the default screenshot output directory (relative to home). Defaults to `~/Documents/screenshots`. *(#6 from @prismaymedia)*
+- **`ALLOW_LOCAL` environment variable** to permit loopback addresses (127.x.x.x, ::1, localhost) through SSRF validation, useful for screenshotting local dev servers. Off by default.
+- **Three-tier test architecture** with separate vitest configs for unit (`*.test.ts`), integration (`*.integration.test.ts`), and e2e (`*.e2e.test.ts`) tiers. New scripts: `test:integration`, `test:e2e`, `test:all`, `test:linux`, `test:coverage`.
+- **Docker-based Linux e2e testing** (`Dockerfile.linux-test`) with Xvfb, maim, scrot, ImageMagick, and xdotool — the only way to test the Linux provider locally on macOS. Runs in CI as a separate job.
+- **CI workflow** (`.github/workflows/ci.yml`) running unit, integration, and Linux e2e tiers on every push and pull request.
+- DPI-awareness assertions for all Windows capture methods.
+- `CLAUDE.md` with project guidance for AI coding assistants.
+
+### Changed
+
+- **Default screenshot output directory** changed from `~/Desktop/Screenshots` to `~/Documents/screenshots`. The original `~/Desktop/Screenshots` remains in `ALLOWED_OUTPUT_DIRS` so existing scripts that wrote there still work.
+- README and CLAUDE.md updated for new test tiers, env vars, and security model.
+- GitHub Actions upgraded to v5 for Node.js 24 compatibility.
+
+### Fixed
+
+- **Windows high-DPI displays:** Resolved an issue (#5) where screenshots were captured at the wrong resolution on high-DPI Windows displays.
+- **IPv6 host-resolver-rules:** Wrapped IPv6 addresses in brackets so Chromium's `--host-resolver-rules` parses them correctly.
+
 ## [1.0.0] - 2026-02-07
 
 ### Added
@@ -44,5 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - IPv6: loopback (::1), link-local (fe80::/10), unique local (fc00::/7), IPv4-mapped addresses
 - App name validation pattern for window capture to prevent injection via Swift code execution
 
-[Unreleased]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/sethbang/mcp-screenshot-server/releases/tag/v1.0.0

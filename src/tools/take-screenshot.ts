@@ -13,7 +13,7 @@ export function registerTakeScreenshot(server: McpServer): void {
   server.registerTool(
     'take_screenshot',
     {
-      description: 'Capture web page or element via headless browser. Saves to ~/Desktop/Screenshots by default.',
+      description: 'Capture web page or element via headless browser. Saves to ~/Documents/screenshots by default (configurable via SCREENSHOT_OUTPUT_DIR env var).',
       inputSchema: {
         url: z.string().describe('URL to capture'),
         width: z.number().min(1).max(3840).optional().describe('Viewport width'),

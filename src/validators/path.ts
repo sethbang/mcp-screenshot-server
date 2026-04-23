@@ -1,5 +1,5 @@
 import { promises as fsPromises } from 'fs';
-import { dirname, join, resolve, relative } from 'path';
+import { dirname, join, resolve, relative, isAbsolute } from 'path';
 import type { PathValidationResult } from '../types/index.js';
 
 /** Injectable filesystem for testing (symlink resolution). */
@@ -80,8 +80,9 @@ export async function validateOutputPath(
 
     const relativePath = relative(realAllowedDir, realPath);
 
-    // If relative path doesn't start with '..' and isn't absolute, it's within the allowed dir
-    if (!relativePath.startsWith('..') && !relativePath.startsWith('/')) {
+    // isAbsolute() catches the cross-drive case on Windows, where relative() returns
+    // an absolute path like 'D:\\foo' that doesn't start with '/' or '..'.
+    if (!relativePath.startsWith('..') && !isAbsolute(relativePath)) {
       return { valid: true, path: realPath };
     }
   }
@@ -89,6 +90,6 @@ export async function validateOutputPath(
   // Path is outside all allowed directories (after symlink resolution)
   return {
     valid: false,
-    error: 'Output path must be within allowed directories (~/Desktop/Screenshots, ~/Downloads, ~/Documents, or /tmp). Symlinks to other locations are not permitted.',
+    error: 'Output path must be within allowed directories (~/Desktop/Screenshots, ~/Documents, ~/Downloads, or the system temp directory). Symlinks to other locations are not permitted.',
   };
 }

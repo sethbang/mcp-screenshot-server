@@ -199,4 +199,42 @@ describe('LinuxProvider', () => {
       ).rejects.toThrow('No screenshot tool found');
     });
   });
+
+  describe('includeCursor (unsupported on Linux)', () => {
+    beforeEach(async () => {
+      mockCommandExists.mockImplementation(async (cmd) => cmd === 'maim');
+      await provider.isAvailable();
+    });
+
+    it('throws on captureFullscreen when includeCursor is true', async () => {
+      await expect(
+        provider.captureFullscreen({ outputPath: '/tmp/test.png', includeCursor: true })
+      ).rejects.toThrow('Linux provider does not support includeCursor');
+    });
+
+    it('throws on captureWindow when includeCursor is true', async () => {
+      await expect(
+        provider.captureWindow({ outputPath: '/tmp/test.png', windowId: 1, includeCursor: true })
+      ).rejects.toThrow('Linux provider does not support includeCursor');
+    });
+
+    it('throws on captureRegion when includeCursor is true', async () => {
+      await expect(
+        provider.captureRegion({
+          outputPath: '/tmp/test.png',
+          x: 0, y: 0, width: 100, height: 100,
+          includeCursor: true,
+        })
+      ).rejects.toThrow('Linux provider does not support includeCursor');
+    });
+
+    it('does NOT throw when includeCursor is unset or false', async () => {
+      await expect(
+        provider.captureFullscreen({ outputPath: '/tmp/test.png' })
+      ).resolves.not.toThrow();
+      await expect(
+        provider.captureFullscreen({ outputPath: '/tmp/test.png', includeCursor: false })
+      ).resolves.not.toThrow();
+    });
+  });
 });

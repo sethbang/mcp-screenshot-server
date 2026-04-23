@@ -14,7 +14,7 @@ export function registerTakeSystemScreenshot(server: McpServer): void {
     'take_system_screenshot',
     {
       description:
-        'Capture desktop, window, or region screenshot. Cross-platform: macOS (screencapture), Linux (maim/scrot/gnome-screenshot/etc.), Windows (PowerShell+.NET). Saves to ~/Desktop/Screenshots by default. For window mode, provide windowName (app name like "Safari") or windowId.',
+        'Capture desktop, window, or region screenshot. Cross-platform: macOS (screencapture), Linux (maim/scrot/gnome-screenshot/etc.), Windows (PowerShell+.NET). Saves to ~/Documents/screenshots by default (configurable via SCREENSHOT_OUTPUT_DIR env var). For window mode, provide windowName (app name like "Safari") or windowId.',
       inputSchema: {
         mode: z
           .enum(['fullscreen', 'window', 'region'])
@@ -35,7 +35,7 @@ export function registerTakeSystemScreenshot(server: McpServer): void {
           })
           .optional()
           .describe('Region {x,y,width,height}'),
-        display: z.number().min(1).optional().describe('Display number'),
+        display: z.number().int().min(1).optional().describe('Display number'),
         includeCursor: z.boolean().optional().describe('Include cursor'),
         format: z.enum(['png', 'jpg']).optional().describe('Image format (png or jpg)'),
         delay: z.number().min(0).max(10).optional().describe('Delay seconds'),
