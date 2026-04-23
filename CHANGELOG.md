@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING:** `engines.node` floor raised from `>=18.0.0` to `^20.19.0 || ^22.13.0 || >=24` to match ESLint 10's runtime requirement. Users on Node 18 or early Node 20 (<20.19) can no longer install. Worth a minor-version bump (1.2.0) when this lands, not a patch.
+- Bumped dev tooling: TypeScript 5.7 → 6.0, ESLint 9 → 10, `@typescript-eslint/*` 8.54 → 8.59. New devDep `jiti` (ESLint 10 needs it to load TS config files).
+
+### Added
+
+- CI matrix: unit tests now run on `ubuntu-latest`, `macos-latest`, and `windows-latest` (was Linux only). New separate `lint` job runs `eslint src/` on every push and PR.
+- Cross-platform test fixtures (`os.tmpdir()`/`os.homedir()`) so the test suite runs on Windows. Plus a Node-contract test in `tests/validators/path.test.ts` that locks the `path.win32.isAbsolute` semantics the v1.1.2 cross-drive Windows fix depends on.
+- Vitest coverage thresholds tightened from 50/40/50/50 to 73/68/73/74 (statements/branches/functions/lines), set ~2pp below current measured coverage so meaningful regressions surface in CI.
+
 ## [1.1.2] - 2026-04-22
 
 ### Changed

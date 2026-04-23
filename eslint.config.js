@@ -2,6 +2,7 @@ import tsParser from '@typescript-eslint/parser';
 
 export default [
   {
+    name: 'mcp-screenshot/src',
     files: ['src/**/*.ts'],
     languageOptions: {
       parser: tsParser,
@@ -18,6 +19,7 @@ export default [
     },
   },
   {
+    name: 'mcp-screenshot/semaphore-allowlist',
     files: ['src/config/runtime.ts', 'src/utils/semaphore.ts', 'tests/**/*.ts'],
     languageOptions: {
       parser: tsParser,
