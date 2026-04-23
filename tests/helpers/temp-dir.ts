@@ -1,9 +1,10 @@
 import { mkdir, rm, symlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export interface TempTestDir {
-  /** Root of the temp directory tree (e.g. /tmp/mcp-test-<uuid>). */
+  /** Root of the temp directory tree (under os.tmpdir()). */
   root: string;
   /** A directory that tests should configure as "allowed". */
   allowed: string;
@@ -14,7 +15,7 @@ export interface TempTestDir {
 }
 
 export async function createTempTestDir(): Promise<TempTestDir> {
-  const root = join('/tmp', `mcp-test-${randomUUID()}`);
+  const root = join(tmpdir(), `mcp-test-${randomUUID()}`);
   const allowed = join(root, 'allowed');
   const forbidden = join(root, 'forbidden');
 
