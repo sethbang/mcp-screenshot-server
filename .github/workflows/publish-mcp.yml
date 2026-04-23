@@ -19,7 +19,7 @@ jobs:
       ### Build & test ###
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: "24" # npm 11.5.1+ required for trusted publishing
           registry-url: "https://registry.npmjs.org"
