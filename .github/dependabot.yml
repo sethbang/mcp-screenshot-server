@@ -12,6 +12,14 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # Pin @types/node to lowest supported runtime (Node 20). Bumping to 22+
+      # would let consumers see types from APIs that don't exist on Node 20.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # Zod 4 needs MCP SDK 2.x (Standard Schema). Re-enable when SDK 2.x stable lands.
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -24,3 +32,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    ignore:
+      # Pin to current LTS line; major bumps cross LTS boundaries and want manual review.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
