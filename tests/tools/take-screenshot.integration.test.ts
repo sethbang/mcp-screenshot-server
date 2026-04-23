@@ -14,6 +14,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { existsSync, statSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createTempTestDir, type TempTestDir } from '../helpers/temp-dir.js';
 import { createTestServer, type TestServer } from '../helpers/test-server.js';
 import { Semaphore } from '../../src/utils/semaphore.js';
@@ -34,7 +35,7 @@ vi.mock('../../src/config/runtime.js', () => ({
 }));
 
 vi.mock('../../src/config/index.js', () => ({
-  get ALLOWED_OUTPUT_DIRS() { return [tmp.allowed, '/tmp']; },
+  get ALLOWED_OUTPUT_DIRS() { return [tmp.allowed, tmpdir()]; },
   MAX_CONCURRENT_SCREENSHOTS: 3,
   ALLOW_LOCAL: false,
 }));
