@@ -5,12 +5,29 @@
 import type { ScreenshotProvider, CaptureOptions, WindowTarget, RegionTarget } from './screenshot-provider.js';
 import { execFileAsync, commandExists, sleep } from './screenshot-provider.js';
 
+const POWERSHELL_FALLBACK_PATHS = [
+  'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+  'C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe',
+];
+
+async function resolvePowerShell(): Promise<string | null> {
+  if (await commandExists('powershell')) return 'powershell';
+  for (const p of POWERSHELL_FALLBACK_PATHS) {
+    try {
+      await execFileAsync(p, ['-Command', 'echo ok']);
+      return p;
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
 /**
  * Windows screenshot provider using PowerShell with .NET System.Drawing.
  * Zero external dependencies — PowerShell and .NET are built into all modern Windows.
  */
 export class WindowsProvider implements ScreenshotProvider {
   readonly platform = 'Windows';
+  private powershellPath: string | null = null;
 
   private static readonly DPI_AWARE_SNIPPET = `
 Add-Type -TypeDefinition @"
@@ -19,27 +36,40 @@ using System.Runtime.InteropServices;
 public class DpiAwareness {
     [DllImport("user32.dll")]
     public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
 }
 "@
-[DpiAwareness]::SetProcessDPIAware() | Out-Null`.trim();
+try { [DpiAwareness]::SetProcessDpiAwarenessContext([IntPtr]::new(-4)) | Out-Null } catch { [DpiAwareness]::SetProcessDPIAware() | Out-Null }`.trim();
 
   async isAvailable(): Promise<boolean> {
-    return commandExists('powershell');
+    this.powershellPath = await resolvePowerShell();
+    return this.powershellPath !== null;
   }
 
   async captureFullscreen(opts: CaptureOptions): Promise<void> {
     if (opts.delay && opts.delay > 0) await sleep(opts.delay);
 
     const format = this.dotNetFormat(opts.format);
-    const displayIndex = (opts.display ?? 1) - 1; // Convert 1-based to 0-based
+
+    // No display specified → capture entire virtual screen (all monitors combined)
+    // display specified → capture that specific monitor
+    const captureAllDisplays = opts.display === undefined || opts.display === null;
+    const displayIndex = captureAllDisplays ? 0 : (opts.display! - 1);
+
+    const boundsScript = captureAllDisplays
+      ? `
+$bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen`
+      : `
+$screens = [System.Windows.Forms.Screen]::AllScreens
+$screen = if (${displayIndex} -lt $screens.Length) { $screens[${displayIndex}] } else { [System.Windows.Forms.Screen]::PrimaryScreen }
+$bounds = $screen.Bounds`;
 
     const script = `
 ${WindowsProvider.DPI_AWARE_SNIPPET}
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-$screens = [System.Windows.Forms.Screen]::AllScreens
-$screen = if (${displayIndex} -lt $screens.Length) { $screens[${displayIndex}] } else { [System.Windows.Forms.Screen]::PrimaryScreen }
-$bounds = $screen.Bounds
+${boundsScript}
 $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 ${opts.includeCursor ? '$cursorPos = [System.Windows.Forms.Cursor]::Position\n' : ''}
@@ -129,11 +159,13 @@ $bitmap.Dispose()
   // ── Private helpers ────────────────────────────────────────────────────
 
   private async runPowerShell(script: string): Promise<void> {
-    await execFileAsync('powershell', [
+    const cmd = this.powershellPath ?? 'powershell';
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    await execFileAsync(cmd, [
       '-ExecutionPolicy', 'Bypass',
       '-NoProfile',
       '-NonInteractive',
-      '-Command', script,
+      '-EncodedCommand', encoded,
     ]);
   }
 

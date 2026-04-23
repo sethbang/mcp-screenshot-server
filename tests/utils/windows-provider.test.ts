@@ -17,6 +17,14 @@ import { execFileAsync, sleep } from '../../src/utils/screenshot-provider.js';
 const mockExecFile = vi.mocked(execFileAsync);
 const mockSleep = vi.mocked(sleep);
 
+// PowerShell scripts are now passed via -EncodedCommand (base64 UTF-16LE) so
+// that Unicode arguments survive the ANSI codepage on non-English Windows.
+function decodeScript(callIndex = 0): string {
+  const args = mockExecFile.mock.calls[callIndex][1] as string[];
+  const encoded = args[args.length - 1];
+  return Buffer.from(encoded, 'base64').toString('utf16le');
+}
+
 describe('WindowsProvider', () => {
   let provider: WindowsProvider;
 
@@ -32,8 +40,7 @@ describe('WindowsProvider', () => {
   describe('captureFullscreen', () => {
     it('includes DPI awareness snippet', async () => {
       await provider.captureFullscreen({ outputPath: 'C:\\test.png' });
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
-      expect(script).toContain('SetProcessDPIAware');
+      expect(decodeScript()).toContain('SetProcessDPIAware');
     });
 
     it('calls powershell with CopyFromScreen script', async () => {
@@ -45,24 +52,21 @@ describe('WindowsProvider', () => {
           '-ExecutionPolicy', 'Bypass',
           '-NoProfile',
           '-NonInteractive',
-          '-Command',
-          expect.stringContaining('CopyFromScreen'),
+          '-EncodedCommand',
+          expect.any(String),
         ])
       );
+      expect(decodeScript()).toContain('CopyFromScreen');
     });
 
     it('includes Png format by default', async () => {
       await provider.captureFullscreen({ outputPath: 'C:\\test.png' });
-
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
-      expect(script).toContain('ImageFormat]::Png');
+      expect(decodeScript()).toContain('ImageFormat]::Png');
     });
 
     it('uses Jpeg format when jpg is specified', async () => {
       await provider.captureFullscreen({ outputPath: 'C:\\test.jpg', format: 'jpg' });
-
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
-      expect(script).toContain('ImageFormat]::Jpeg');
+      expect(decodeScript()).toContain('ImageFormat]::Jpeg');
     });
 
     it('sleeps when delay is specified', async () => {
@@ -70,37 +74,50 @@ describe('WindowsProvider', () => {
       expect(mockSleep).toHaveBeenCalledWith(3);
     });
 
-    it('handles display selection', async () => {
+    it('captures the entire virtual desktop when no display is specified', async () => {
+      await provider.captureFullscreen({ outputPath: 'C:\\test.png' });
+
+      const script = decodeScript();
+      expect(script).toContain('SystemInformation]::VirtualScreen');
+      expect(script).not.toContain('AllScreens');
+    });
+
+    it('selects a specific monitor when display is specified', async () => {
       await provider.captureFullscreen({ outputPath: 'C:\\test.png', display: 2 });
 
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
-      // Display 2 = index 1 (0-based)
-      expect(script).toContain('1');
+      const script = decodeScript();
+      // Display 2 → index 1 (0-based) into AllScreens
       expect(script).toContain('AllScreens');
+      expect(script).toContain('$screens[1]');
+      expect(script).not.toContain('VirtualScreen');
     });
   });
 
   describe('captureWindow', () => {
     it('includes DPI awareness snippet', async () => {
       await provider.captureWindow({ outputPath: 'C:\\test.png', windowName: 'Notepad' });
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
-      expect(script).toContain('SetProcessDPIAware');
+      expect(decodeScript()).toContain('SetProcessDPIAware');
     });
 
     it('searches for window by name using Get-Process', async () => {
       await provider.captureWindow({ outputPath: 'C:\\test.png', windowName: 'Notepad' });
 
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
+      const script = decodeScript();
       expect(script).toContain('Get-Process');
       expect(script).toContain('Notepad');
       expect(script).toContain('GetWindowRect');
     });
 
+    it('preserves Unicode (CJK) characters in windowName end-to-end', async () => {
+      await provider.captureWindow({ outputPath: 'C:\\test.png', windowName: '微信' });
+      // -EncodedCommand uses base64 UTF-16LE so non-ASCII window names survive
+      // the ANSI codepage on non-English Windows (the bug this PR fixes).
+      expect(decodeScript()).toContain('微信');
+    });
+
     it('uses windowId as HWND when provided', async () => {
       await provider.captureWindow({ outputPath: 'C:\\test.png', windowId: 12345 });
-
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
-      expect(script).toContain('[IntPtr]::new(12345)');
+      expect(decodeScript()).toContain('[IntPtr]::new(12345)');
     });
 
     it('throws when no windowName or windowId provided', async () => {
@@ -116,8 +133,7 @@ describe('WindowsProvider', () => {
         outputPath: 'C:\\test.png',
         x: 0, y: 0, width: 100, height: 100,
       });
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
-      expect(script).toContain('SetProcessDPIAware');
+      expect(decodeScript()).toContain('SetProcessDPIAware');
     });
 
     it('calls powershell with region coordinates', async () => {
@@ -126,7 +142,7 @@ describe('WindowsProvider', () => {
         x: 100, y: 200, width: 800, height: 600,
       });
 
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
+      const script = decodeScript();
       expect(script).toContain('800');
       expect(script).toContain('600');
       expect(script).toContain('100');
@@ -138,9 +154,7 @@ describe('WindowsProvider', () => {
   describe('path escaping', () => {
     it('escapes single quotes in output path', async () => {
       await provider.captureFullscreen({ outputPath: "C:\\Users\\it's a test\\screenshot.png" });
-
-      const script = mockExecFile.mock.calls[0][1].slice(-1)[0];
-      expect(script).toContain("it''s a test");
+      expect(decodeScript()).toContain("it''s a test");
     });
   });
 });

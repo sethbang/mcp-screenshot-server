@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { join } from 'path';
+import { homedir, tmpdir } from 'os';
 
 /**
  * Maximum number of concurrent Puppeteer browser instances.
@@ -21,9 +22,9 @@ export const ALLOW_LOCAL: boolean = process.env.ALLOW_LOCAL === 'true';
 /**
  * Resolved allowed output directories for screenshots.
  * Only these directories (and their subdirectories) are permitted for file output.
- * Uses process.env.HOME at module load time (pure computation, no I/O side effects).
+ * os.homedir() works cross-platform (USERPROFILE on Windows, HOME on Unix).
  */
-export const homeDir = process.env.HOME || '/tmp';
+export const homeDir = process.env.HOME || homedir();
 
 /**
  * Resolved default output directory for screenshots.
@@ -36,7 +37,7 @@ export const configuredOutDir = process.env.SCREENSHOT_OUTPUT_DIR
 export const ALLOWED_OUTPUT_DIRS: readonly string[] = [
   join(homeDir, 'Desktop', 'Screenshots'), // ~/Desktop/Screenshots (original default)
   configuredOutDir,                         // Configured default output directory
-  '/tmp',                                   // System temp directory
+  tmpdir(),                                  // System temp directory (cross-platform)
   join(homeDir, 'Downloads'),               // ~/Downloads
   join(homeDir, 'Documents'),               // ~/Documents
 ];

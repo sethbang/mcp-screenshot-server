@@ -30,6 +30,6 @@ describe('Singleton Architecture', () => {
     }
 
     expect(instantiations).toHaveLength(1);
-    expect(instantiations[0]).toContain('config/runtime.ts');
+    expect(instantiations[0].replace(/\\/g, '/')).toContain('config/runtime.ts');
   });
 });
