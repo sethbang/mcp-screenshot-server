@@ -1,4 +1,4 @@
-FROM node:20-bookworm
+FROM node:25-bookworm
 
 # Install Xvfb, X11 utilities, screenshot tools, and Chromium dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
