@@ -6,7 +6,7 @@ on:
 
 permissions:
   id-token: write # Required for OIDC (both npm trusted publishing and MCP Registry)
-  contents: read
+  contents: write # Required for `gh release create`
 
 jobs:
   publish:
@@ -54,3 +54,19 @@ jobs:
 
       - name: Publish server to MCP Registry
         run: ./mcp-publisher publish
+
+      ### Create GitHub Release ###
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          awk -v ver="$VERSION" '
+            /^## \[/ { if (in_section) exit; if ($0 ~ "^## \\[" ver "\\]") { in_section=1; next } }
+            in_section { print }
+          ' CHANGELOG.md > release-notes.md
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --notes-file release-notes.md \
+            --verify-tag
