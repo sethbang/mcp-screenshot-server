@@ -4,6 +4,7 @@
 
 import type { ScreenshotProvider, CaptureOptions, WindowTarget, RegionTarget } from './screenshot-provider.js';
 import { execFileAsync, commandExists, sleep } from './screenshot-provider.js';
+import { detectLinuxDistro, getInstallCommand } from './linux-deps.js';
 
 type LinuxBackend = 'gnome-screenshot' | 'spectacle' | 'scrot' | 'maim' | 'grim' | 'import';
 
@@ -57,6 +58,14 @@ export class LinuxProvider implements ScreenshotProvider {
   async captureWindow(opts: CaptureOptions & WindowTarget): Promise<void> {
     const backend = await this.getBackend();
     this.assertSupportedOptions(opts);
+
+    // grim cannot capture per-window on Wayland — fail fast with the
+    // backend-specific error before attempting xdotool resolution, which
+    // would otherwise mask the real reason with a misleading message.
+    if (backend === 'grim') {
+      throw new Error('Window capture is not supported on Wayland with grim. Use fullscreen or region mode.');
+    }
+
     if (opts.delay && opts.delay > 0) await sleep(opts.delay);
 
     // Try to resolve window ID from name using xdotool (X11 only)
@@ -93,9 +102,6 @@ export class LinuxProvider implements ScreenshotProvider {
           throw new Error('maim requires a window ID or xdotool for window-by-name capture');
         }
         break;
-
-      case 'grim':
-        throw new Error('Window capture is not supported on Wayland with grim. Use fullscreen or region mode.');
 
       case 'import':
         if (xWindowId) {
@@ -181,17 +187,33 @@ export class LinuxProvider implements ScreenshotProvider {
   private async getBackend(): Promise<LinuxBackend> {
     await this.detectBackend();
     if (!this._backend) {
+      const distro = await detectLinuxDistro();
+      const installCmd = getInstallCommand(distro.packageManager, ['maim', 'xdotool']);
       throw new Error(
-        'No screenshot tool found. Install one of: maim, scrot, gnome-screenshot, spectacle, grim, or ImageMagick (import).'
+        'No screenshot tool found on this Linux system. ' +
+        'take_system_screenshot needs one of: maim, scrot, gnome-screenshot, spectacle, grim (Wayland), or ImageMagick (import). ' +
+        `For a typical X11 install: ${installCmd}. ` +
+        'See README for distro-specific instructions.'
       );
     }
     return this._backend;
   }
 
   /**
-   * Find an X11 window ID by application name using xdotool.
+   * Find an X11 window ID by application name using xdotool. Throws a helpful
+   * install hint when xdotool is missing — without it, no Linux backend can
+   * honor a windowName request.
    */
   private async findXWindowId(name: string): Promise<string | undefined> {
+    if (!(await commandExists('xdotool'))) {
+      const distro = await detectLinuxDistro();
+      const installCmd = getInstallCommand(distro.packageManager, ['xdotool']);
+      throw new Error(
+        'Window-by-name capture requires xdotool, which is not installed. ' +
+        `Install it with: ${installCmd}. ` +
+        'Alternatively, pass an explicit windowId.'
+      );
+    }
     try {
       const { stdout } = await execFileAsync('xdotool', ['search', '--name', name]);
       const ids = stdout.trim().split('\n').filter(Boolean);

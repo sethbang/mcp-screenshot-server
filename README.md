@@ -42,6 +42,14 @@ sudo pacman -S maim xdotool
 sudo apt install grim
 ```
 
+After installing, you can verify your setup with:
+
+```bash
+npx universal-screenshot-mcp --doctor
+```
+
+This probes the host and prints copy-pasteable install commands for any missing tools, tailored to your detected distro.
+
 ## Quick Start
 
 ### Install from npm
@@ -92,6 +100,24 @@ Or if installed from source:
   }
 }
 ```
+
+For **Claude Code**, register the server with the `claude mcp add` command:
+
+```bash
+# Project scope (current directory only)
+claude mcp add screenshot-server -- npx -y universal-screenshot-mcp
+
+# User scope (available across all projects)
+claude mcp add --scope user screenshot-server -- npx -y universal-screenshot-mcp
+```
+
+Or if installed from source:
+
+```bash
+claude mcp add screenshot-server -- node /absolute/path/to/mcp-screenshot-server/build/index.js
+```
+
+Verify the server registered with `claude mcp list`, or check live status from inside a session with `/mcp`.
 
 For **Cursor** or other MCP clients, consult their documentation for the equivalent configuration.
 

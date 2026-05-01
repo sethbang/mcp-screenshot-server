@@ -7,16 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **BREAKING:** `engines.node` floor raised from `>=18.0.0` to `^20.19.0 || ^22.13.0 || >=24` to match ESLint 10's runtime requirement. Users on Node 18 or early Node 20 (<20.19) can no longer install. Worth a minor-version bump (1.2.0) when this lands, not a patch.
-- Bumped dev tooling: TypeScript 5.7 → 6.0, ESLint 9 → 10, `@typescript-eslint/*` 8.54 → 8.59. New devDep `jiti` (ESLint 10 needs it to load TS config files).
+## [1.2.0] - 2026-05-01
 
 ### Added
 
+- **`--doctor` subcommand** (`npx universal-screenshot-mcp --doctor`) probes the host and reports per-platform check results with copy-pasteable install commands for any missing tools. Exits non-zero on failures so it can gate CI/scripting. Linux distros recognized via `/etc/os-release`: Debian/Ubuntu/Pop/Mint/Kali (apt), Fedora/RHEL/CentOS/Rocky/Alma (dnf), Arch/Manjaro/EndeavourOS (pacman), openSUSE/SLES (zypper), Alpine (apk).
+- **Linux startup stderr warning.** When the server starts on Linux and no screenshot backend is detected, prints a one-line warning pointing users at `--doctor` so the missing-dependency surprise surfaces at boot instead of at first tool call. Fire-and-forget so it doesn't add boot latency.
+- README: Claude Code install subsection (`claude mcp add`) mirroring the existing Claude Desktop pattern, plus a `--doctor` verification line at the end of the Linux Installation Examples.
 - CI matrix: unit tests now run on `ubuntu-latest`, `macos-latest`, and `windows-latest` (was Linux only). New separate `lint` job runs `eslint src/` on every push and PR.
 - Cross-platform test fixtures (`os.tmpdir()`/`os.homedir()`) so the test suite runs on Windows. Plus a Node-contract test in `tests/validators/path.test.ts` that locks the `path.win32.isAbsolute` semantics the v1.1.2 cross-drive Windows fix depends on.
 - Vitest coverage thresholds tightened from 50/40/50/50 to 73/68/73/74 (statements/branches/functions/lines), set ~2pp below current measured coverage so meaningful regressions surface in CI.
+
+### Changed
+
+- **Linux runtime errors now include distro-specific install commands** inferred from `/etc/os-release`. The "no screenshot tool found" error from `LinuxProvider` ends with e.g. `For a typical X11 install: sudo apt install maim xdotool` (or `sudo pacman -S maim xdotool` on Arch, `sudo apk add maim xdotool` on Alpine, etc.) instead of a generic tool list. Same treatment for the missing-`xdotool` path when calling `take_system_screenshot` with `windowName`.
+- **BREAKING:** `engines.node` floor raised from `>=18.0.0` to `^20.19.0 || ^22.13.0 || >=24` to match ESLint 10's runtime requirement. Users on Node 18 or early Node 20 (<20.19) can no longer install.
+- Bumped dev tooling: TypeScript 5.7 → 6.0, ESLint 9 → 10, `@typescript-eslint/*` 8.54 → 8.59. New devDep `jiti` (ESLint 10 needs it to load TS config files).
 
 ## [1.1.2] - 2026-04-22
 
@@ -101,7 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - IPv6: loopback (::1), link-local (fe80::/10), unique local (fc00::/7), IPv4-mapped addresses
 - App name validation pattern for window capture to prevent injection via Swift code execution
 
-[Unreleased]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.0.0...v1.1.0

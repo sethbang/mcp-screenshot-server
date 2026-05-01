@@ -11,6 +11,19 @@ vi.mock('../../src/utils/screenshot-provider.js', async (importOriginal) => {
   };
 });
 
+// Mock linux-deps so detectLinuxDistro doesn't read real /etc/os-release.
+vi.mock('../../src/utils/linux-deps.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/utils/linux-deps.js')>();
+  return {
+    ...original,
+    detectLinuxDistro: vi.fn().mockResolvedValue({
+      id: 'ubuntu',
+      idLike: ['debian'],
+      packageManager: 'apt',
+    }),
+  };
+});
+
 import { LinuxProvider } from '../../src/utils/linux-provider.js';
 import { commandExists, execFileAsync, sleep } from '../../src/utils/screenshot-provider.js';
 
@@ -165,6 +178,8 @@ describe('LinuxProvider', () => {
     });
 
     it('uses xdotool to find window by name', async () => {
+      // Make both maim and xdotool detected.
+      mockCommandExists.mockImplementation(async (cmd) => cmd === 'maim' || cmd === 'xdotool');
       // Mock xdotool response
       mockExecFile.mockResolvedValueOnce({ stdout: '67890\n', stderr: '' });
 
@@ -174,6 +189,15 @@ describe('LinuxProvider', () => {
       expect(mockExecFile).toHaveBeenCalledWith('xdotool', ['search', '--name', 'Firefox']);
       // Second call: maim with the found window ID
       expect(mockExecFile).toHaveBeenCalledWith('maim', ['-i', '67890', '/tmp/test.png']);
+    });
+
+    it('throws a helpful install hint when xdotool is missing', async () => {
+      // maim available but xdotool is not.
+      mockCommandExists.mockImplementation(async (cmd) => cmd === 'maim');
+
+      await expect(
+        provider.captureWindow({ outputPath: '/tmp/test.png', windowName: 'Firefox' }),
+      ).rejects.toThrow(/xdotool.*not installed.*sudo apt install xdotool/s);
     });
   });
 
@@ -191,12 +215,12 @@ describe('LinuxProvider', () => {
   });
 
   describe('no backend available', () => {
-    it('throws descriptive error when no tools found', async () => {
+    it('throws an error with a distro-specific install hint', async () => {
       mockCommandExists.mockResolvedValue(false);
 
       await expect(
-        provider.captureFullscreen({ outputPath: '/tmp/test.png' })
-      ).rejects.toThrow('No screenshot tool found');
+        provider.captureFullscreen({ outputPath: '/tmp/test.png' }),
+      ).rejects.toThrow(/No screenshot tool found.*sudo apt install maim xdotool/s);
     });
   });
 
