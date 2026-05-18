@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bumped `puppeteer` from 24.43.1 to 25.0.4 (major). Puppeteer 25 is ESM-only — already the case for this project — and the only Puppeteer API used here (`puppeteer.launch()`) is unaffected by v25's breaking changes.
 - **BREAKING:** `engines.node` floor raised from `^20.19.0 || ^22.13.0 || >=24` to `^22.13.0 || >=24`. Puppeteer 25 requires Node 22+, so Node 20 is no longer supported. Users on Node 20 can no longer install.
+- CI workflow (`ci.yml`) now runs on Node 22 instead of Node 20, matching the new `engines` floor.
 
 ## [1.2.0] - 2026-05-01
 
