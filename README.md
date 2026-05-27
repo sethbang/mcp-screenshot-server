@@ -3,6 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/universal-screenshot-mcp.svg)](https://www.npmjs.com/package/universal-screenshot-mcp)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.sethbang%2Fscreenshot--server-blue)](https://registry.modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
+[![SafeSkill 93/100](https://img.shields.io/badge/SafeSkill-93%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/sethbang-mcp-screenshot-server)
 
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with screenshot capabilities — both web page capture via [Puppeteer](https://pptr.dev/) and cross-platform system screenshots using native OS tools.
 
