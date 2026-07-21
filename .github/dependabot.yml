@@ -20,6 +20,10 @@ updates:
       # Zod 4 needs MCP SDK 2.x (Standard Schema). Re-enable when SDK 2.x stable lands.
       - dependency-name: "zod"
         update-types: ["version-update:semver-major"]
+      # TypeScript 7 has no typescript-eslint support yet (peer caps at <6.1.0),
+      # so npm ci fails to resolve. Re-enable when typescript-eslint ships TS7 support.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
