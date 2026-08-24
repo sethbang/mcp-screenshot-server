@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { registerTakeScreenshot } from './tools/take-screenshot.js';
 import { registerTakeSystemScreenshot } from './tools/take-system-screenshot.js';
 

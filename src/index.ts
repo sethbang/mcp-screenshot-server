@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createServer } from './server.js';
 import { runDoctor, formatDoctorReport } from './utils/doctor.js';
 import { commandExists } from './utils/screenshot-provider.js';
@@ -13,9 +13,13 @@ async function main(): Promise<void> {
     process.exit(report.hasFailures ? 1 : 0);
   }
 
-  const server = createServer();
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  // serveStdio owns the protocol-era decision for the connection: the opening
+  // exchange selects the era and pins one instance from this factory for the
+  // connection's lifetime. `legacy` is left at its default 'serve' so clients
+  // still speaking the 2025-era `initialize` handshake keep working.
+  serveStdio(() => createServer(), {
+    onerror: (error) => console.error('Transport error:', error),
+  });
   console.error('Screenshot MCP server running');
 
   if (process.platform === 'linux') {

@@ -1,6 +1,6 @@
 {
   "name": "universal-screenshot-mcp",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "An MCP server for capturing web page screenshots via Puppeteer and cross-platform system screenshots via native OS tools",
   "author": "Seth Bang",
   "license": "Apache-2.0",
@@ -52,11 +52,12 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "puppeteer": "^25.0.4",
-    "zod": "^3.25.76"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^8.59.0",
     "@typescript-eslint/parser": "^8.59.0",
