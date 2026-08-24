@@ -22,8 +22,25 @@ updates:
       # SDK 2.x (Standard Schema). Re-enable when SDK 2.x stable lands." SDK 2.x
       # stable has landed and this server is on @modelcontextprotocol/server 2.x
       # with zod 4, so the condition is satisfied and majors flow normally again.
-      # TypeScript 7 has no typescript-eslint support yet (peer caps at <6.1.0),
-      # so npm ci fails to resolve. Re-enable when typescript-eslint ships TS7 support.
+      # TypeScript 7 is the Go-native compiler and ships WITHOUT a programmatic
+      # API, so typescript-eslint cannot support it — its parser hard-throws
+      # "typescript-eslint does not support TS 7.0." at require() time. Note this
+      # is a LINT-TIME failure, not an install-time one: npm only emits ERESOLVE
+      # peer warnings and installs anyway, so CI would go green on install and
+      # then fail in the lint job.
+      #
+      # tsc 7 itself compiles this project cleanly (and ~6x faster), so the
+      # blocker is purely the lint toolchain. There is no typescript-eslint
+      # release that helps — there is no v9, and even the canary still caps its
+      # peer at <6.1.0. Support is tracked against TS >=7.1, which is when
+      # Microsoft plans to ship the new API:
+      #   https://github.com/typescript-eslint/typescript-eslint/issues/10940
+      #
+      # devDependencies.typescript is pinned to ~6.0.0 to make this explicit
+      # rather than implied. Re-evaluate when typescript-eslint ships TS 7.1
+      # support; a side-by-side setup (typescript aliased to
+      # @typescript/typescript6 plus @typescript/native) works today but isn't
+      # worth the complexity at this project's size.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
