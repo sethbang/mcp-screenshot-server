@@ -23,7 +23,7 @@ vi.mock('../../src/config/index.js', () => ({
 // Capture the handler via McpServer mock
 let capturedHandler: Function;
 
-vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
+vi.mock('@modelcontextprotocol/server', () => ({
   McpServer: class {
     registerTool(_name: string, _schema: unknown, handler: Function) {
       capturedHandler = handler;
@@ -32,7 +32,7 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
 }));
 
 import { registerTakeSystemScreenshot } from '../../src/tools/take-system-screenshot.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 
 const isMacOS = process.platform === 'darwin';
 

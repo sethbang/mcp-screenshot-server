@@ -72,7 +72,7 @@ const mockValidateOutputPath = vi.mocked(validateOutputPath);
 // Capture the handler via McpServer mock
 let capturedHandler: Function;
 
-vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
+vi.mock('@modelcontextprotocol/server', () => ({
   McpServer: class {
     registerTool(_name: string, _schema: unknown, handler: Function) {
       capturedHandler = handler;
@@ -81,7 +81,7 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
 }));
 
 import { registerTakeScreenshot } from '../../src/tools/take-screenshot.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 
 const server = new McpServer({ name: 'test', version: '1.0.0' } as any);
 registerTakeScreenshot(server);

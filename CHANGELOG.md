@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-24
+
+### Changed
+
+- **Migrated to MCP TypeScript SDK v2.** Replaced the monolithic `@modelcontextprotocol/sdk` (v1.30.0) with `@modelcontextprotocol/server` 2.0.0; added `@modelcontextprotocol/client` 2.0.0 as a devDependency for the protocol round-trip tests. Note that SDK v2 did not ship as `@modelcontextprotocol/sdk@2.0.0` — v2 is a package split.
+- **BREAKING (internal):** Bumped `zod` from `^3.25.76` to `^4.2.0`. SDK v2 requires zod 4; zod 3 schemas fail silently at runtime under it. No effect on consumers — tool input schemas are unchanged.
+- `src/index.ts` now uses `serveStdio()` from `@modelcontextprotocol/server/stdio` instead of hand-wiring `StdioServerTransport`. This adds support for the `2026-07-28` protocol revision (stateless core, `server/discover`, `resultType`, cacheable list hints) while leaving the `legacy` option at its default `'serve'`, so clients still speaking the 2025-era `initialize` handshake continue to work unchanged.
+- Tool `inputSchema` definitions are now wrapped in `z.object({ ... })`. Raw Zod shapes are deprecated in SDK v2.
+- `server.json` version resynced — it had drifted to 1.2.0 while the package was at 1.3.0.
+
+### Notes
+
+- The `2026-07-28` specification required no functional changes to this server. Its headline changes (stateless core, session removal, `subscriptions/listen`, header-based routing, Multi Round-Trip Requests, authorization hardening) are all either Streamable-HTTP-only or features this server does not implement. The Roots/Sampling/Logging deprecations do not apply; this server already logs to stderr, which is the recommended replacement for the Logging feature on stdio.
+- Verified against both protocol eras: a `2025-06-18` `initialize` handshake still negotiates and serves `tools/list` and `tools/call`, and a `2026-07-28` client gets a correct `server/discover` response.
+- `engines.node` (`^22.13.0 || >=24`) already satisfies SDK v2's `>=20` floor and is unchanged.
+
 ## [1.3.0] - 2026-05-18
 
 ### Changed

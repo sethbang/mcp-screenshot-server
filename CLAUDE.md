@@ -38,10 +38,14 @@ Run a single test file: `npx vitest run tests/validators/url.test.ts`
 **ESM-only** (`"type": "module"`), TypeScript strict mode, target ES2022, Node16 module resolution. Output goes to `build/`.
 
 ### Entry flow
-`src/index.ts` → creates server via `src/server.ts` → connects stdio transport. `server.ts` registers both tools on an `McpServer` instance.
+`src/index.ts` → passes a `createServer` factory (from `src/server.ts`) to `serveStdio()`. `server.ts` registers both tools on an `McpServer` instance.
+
+`serveStdio()` owns the protocol-era decision: the opening exchange selects the era and pins one server instance for the connection's lifetime. Its `legacy` option is deliberately left at the default `'serve'` so clients still speaking the 2025-era `initialize` handshake keep working — passing `'reject'` would break every currently-installed client.
 
 ### Tool registration pattern
-Each tool in `src/tools/` exports a `register*` function that takes an `McpServer` and calls `server.tool()` with Zod schemas for input validation. Tools are self-contained modules.
+Each tool in `src/tools/` exports a `register*` function that takes an `McpServer` and calls `server.registerTool()` with a `z.object({ ... })` input schema for validation. Tools are self-contained modules. Raw Zod shapes (an unwrapped object of field schemas) are deprecated in SDK v2 — always wrap them.
+
+The SDK is v2, which ships as `@modelcontextprotocol/server` (not `@modelcontextprotocol/sdk`, which is the v1 package and stops at 1.30.0). `McpServer` and `InMemoryTransport` come from the package root; `serveStdio` from `@modelcontextprotocol/server/stdio`; the test-only `Client` from `@modelcontextprotocol/client`. SDK v2 requires zod 4.
 
 ### System screenshot provider pattern
 `src/utils/screenshot-provider.ts` defines a `ScreenshotProvider` interface and a factory that returns the platform-specific implementation:

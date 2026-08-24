@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import puppeteer from 'puppeteer';
 import { puppeteerSemaphore, defaultOutDir, ensureDefaultDirectory } from '../config/runtime.js';
@@ -14,7 +14,7 @@ export function registerTakeScreenshot(server: McpServer): void {
     'take_screenshot',
     {
       description: 'Capture web page or element via headless browser. Saves to ~/Documents/screenshots by default (configurable via SCREENSHOT_OUTPUT_DIR env var).',
-      inputSchema: {
+      inputSchema: z.object({
         url: z.string().describe('URL to capture'),
         width: z.number().min(1).max(3840).optional().describe('Viewport width'),
         height: z.number().min(1).max(2160).optional().describe('Viewport height'),
@@ -23,7 +23,7 @@ export function registerTakeScreenshot(server: McpServer): void {
         waitForSelector: z.string().optional().describe('Wait for selector'),
         waitForTimeout: z.number().min(0).max(30000).optional().describe('Delay in ms'),
         outputPath: z.string().optional().describe('Absolute path, or relative to home dir'),
-      },
+      }),
     },
     async ({ url, width, height, fullPage, selector, waitForSelector, waitForTimeout, outputPath: custom }) => {
       ensureDefaultDirectory(); // Ensure the default directory exists

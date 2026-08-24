@@ -46,11 +46,11 @@ const mockValidateOutputPath = vi.mocked(validateOutputPath);
 
 // Capture the handler by mocking McpServer
 let capturedHandler: Function;
-let capturedSchema: { inputSchema: Record<string, unknown> };
+let capturedSchema: { inputSchema: ZodType };
 
-vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
+vi.mock('@modelcontextprotocol/server', () => ({
   McpServer: class {
-    registerTool(_name: string, schema: { inputSchema: Record<string, unknown> }, handler: Function) {
+    registerTool(_name: string, schema: { inputSchema: ZodType }, handler: Function) {
       capturedHandler = handler;
       capturedSchema = schema;
     }
@@ -58,8 +58,8 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
 }));
 
 import { registerTakeSystemScreenshot } from '../../src/tools/take-system-screenshot.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { z, type ZodType } from 'zod';
+import { McpServer } from '@modelcontextprotocol/server';
+import { type ZodType } from 'zod';
 
 const server = new McpServer({ name: 'test', version: '1.0.0' } as any);
 registerTakeSystemScreenshot(server);
@@ -227,13 +227,13 @@ describe('take-system-screenshot', () => {
 
   describe('input schema validation', () => {
     it('rejects non-integer display values', () => {
-      const schema = z.object(capturedSchema.inputSchema as Record<string, ZodType>);
+      const schema = capturedSchema.inputSchema;
       const result = schema.safeParse({ mode: 'fullscreen', display: 1.5 });
       expect(result.success).toBe(false);
     });
 
     it('accepts integer display values', () => {
-      const schema = z.object(capturedSchema.inputSchema as Record<string, ZodType>);
+      const schema = capturedSchema.inputSchema;
       const result = schema.safeParse({ mode: 'fullscreen', display: 2 });
       expect(result.success).toBe(true);
     });

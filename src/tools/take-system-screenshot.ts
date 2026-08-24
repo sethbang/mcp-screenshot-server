@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { existsSync } from 'fs';
 import { defaultOutDir, ensureDefaultDirectory } from '../config/runtime.js';
@@ -15,7 +15,7 @@ export function registerTakeSystemScreenshot(server: McpServer): void {
     {
       description:
         'Capture desktop, window, or region screenshot. Cross-platform: macOS (screencapture), Linux (maim/scrot/gnome-screenshot/etc.), Windows (PowerShell+.NET). Saves to ~/Documents/screenshots by default (configurable via SCREENSHOT_OUTPUT_DIR env var). For window mode, provide windowName (app name like "Safari") or windowId.',
-      inputSchema: {
+      inputSchema: z.object({
         mode: z
           .enum(['fullscreen', 'window', 'region'])
           .describe(
@@ -43,7 +43,7 @@ export function registerTakeSystemScreenshot(server: McpServer): void {
           .string()
           .optional()
           .describe('Absolute path, or relative to home dir'),
-      },
+      }),
     },
     async ({
       mode,

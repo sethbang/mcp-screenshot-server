@@ -13,13 +13,15 @@ updates:
           - minor
           - patch
     ignore:
-      # Pin @types/node to lowest supported runtime (Node 20). Bumping to 22+
-      # would let consumers see types from APIs that don't exist on Node 20.
+      # Pin @types/node to the lowest supported runtime (Node 22, per engines.node
+      # "^22.13.0 || >=24"). Bumping to 24+ would let consumers see types from APIs
+      # that don't exist on Node 22.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
-      # Zod 4 needs MCP SDK 2.x (Standard Schema). Re-enable when SDK 2.x stable lands.
-      - dependency-name: "zod"
-        update-types: ["version-update:semver-major"]
+      # NOTE: the zod major ignore was removed in 1.4.0. It read "Zod 4 needs MCP
+      # SDK 2.x (Standard Schema). Re-enable when SDK 2.x stable lands." SDK 2.x
+      # stable has landed and this server is on @modelcontextprotocol/server 2.x
+      # with zod 4, so the condition is satisfied and majors flow normally again.
       # TypeScript 7 has no typescript-eslint support yet (peer caps at <6.1.0),
       # so npm ci fails to resolve. Re-enable when typescript-eslint ships TS7 support.
       - dependency-name: "typescript"
