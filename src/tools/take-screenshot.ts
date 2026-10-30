@@ -1,9 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import { unlink } from 'node:fs/promises';
 import puppeteer from 'puppeteer';
 import { puppeteerSemaphore, defaultOutDir, ensureDefaultDirectory } from '../config/runtime.js';
 import { ALLOWED_OUTPUT_DIRS, MAX_CONCURRENT_SCREENSHOTS, ALLOW_LOCAL } from '../config/index.js';
-import { validateUrl } from '../validators/url.js';
+import { validateUrl, isBlockedIp } from '../validators/url.js';
 import { validateOutputPath } from '../validators/path.js';
 import { ok, err, timestamp, ensureDir } from '../utils/helpers.js';
 
@@ -107,9 +108,30 @@ export function registerTakeScreenshot(server: McpServer): void {
           }
         });
 
+        // SEC-001: --host-resolver-rules pins only the original hostname, so
+        // Chromium re-resolves redirect and iframe hostnames itself after the
+        // Node-side check above. A rebinding DNS server can answer that second
+        // lookup with an internal address. Check the address Chromium actually
+        // connected to for every navigation response (redirect hops included)
+        // and refuse to return a screenshot if any of them is blocked.
+        let blockedNavigation: string | undefined;
+        page.on('response', (res) => {
+          if (blockedNavigation || !res.request().isNavigationRequest()) return;
+          const { ip } = res.remoteAddress();
+          if (!ip) return; // no network connection (e.g. data:, about:blank)
+          const ipCheck = isBlockedIp(ip, { allowLocal: ALLOW_LOCAL });
+          if (ipCheck.blocked) {
+            blockedNavigation = `navigation to ${res.url()} connected to ${ip}: ${ipCheck.reason}`;
+          }
+        });
+
         await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
         if (waitForSelector) await page.waitForSelector(waitForSelector, { timeout: 30000 });
         if (waitForTimeout) await new Promise(r => setTimeout(r, waitForTimeout));
+
+        if (blockedNavigation) {
+          return err(`URL validation failed: ${blockedNavigation}`);
+        }
 
         ensureDir(dest);
 
@@ -119,6 +141,11 @@ export function registerTakeScreenshot(server: McpServer): void {
           await el.screenshot({ path: dest });
         } else {
           await page.screenshot({ path: dest, fullPage: fullPage || false });
+        }
+        // A navigation may have completed while the capture was in progress
+        if (blockedNavigation) {
+          await unlink(dest).catch(() => { /* file may not have been written */ });
+          return err(`URL validation failed: ${blockedNavigation}`);
         }
         return ok(`Screenshot saved: ${dest}`);
       } catch (e) {
