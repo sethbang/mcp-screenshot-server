@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Fixed PowerShell injection in the Windows system screenshot provider (SEC-003).** `outputPath` and `windowName` were interpolated into single-quoted PowerShell string literals, escaping only ASCII quotes. PowerShell also treats U+2018–U+201B as single quotes (and U+201C–U+201E as double quotes), so a value such as `x’+$(Start-Process calc)+’.png` broke out of the literal and ran arbitrary commands. These values are now passed as environment variables (`SS_OUTPUT_PATH`, `SS_WINDOW_NAME`) and read via `$env:`, so they never appear in script text. The script body itself is still sent via `-EncodedCommand`.
+
+### Changed
+
+- Windows `windowName` matching is now a literal, case-insensitive substring match. Previously `` ` ``, `$` and `"` were silently stripped and `*`, `?`, `[` `]` acted as wildcards.
+
 ## [1.4.0] - 2026-08-24
 
 ### Changed
