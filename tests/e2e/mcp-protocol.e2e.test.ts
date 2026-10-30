@@ -109,8 +109,8 @@ describe('MCP protocol — take_screenshot SSRF prevention', () => {
 });
 
 describe('MCP protocol — take_system_screenshot', () => {
-  it.skipIf(process.platform !== 'darwin')(
-    'captures a fullscreen screenshot via the protocol on macOS',
+  it.skipIf(!['darwin', 'win32'].includes(process.platform))(
+    'captures a fullscreen screenshot via the protocol on macOS and Windows',
     async () => {
       const result = await client.callTool({
         name: 'take_system_screenshot',
