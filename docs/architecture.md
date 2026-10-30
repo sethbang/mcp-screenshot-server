@@ -141,7 +141,7 @@ Tests are located in `tests/` mirroring the `src/` structure. All tests use depe
 | [`tests/utils/screenshot-provider.test.ts`](../tests/utils/screenshot-provider.test.ts) | Provider factory and shared utilities |
 | [`tests/utils/macos-provider.test.ts`](../tests/utils/macos-provider.test.ts) | macOS provider — screencapture args, window lookup |
 | [`tests/utils/linux-provider.test.ts`](../tests/utils/linux-provider.test.ts) | Linux provider — tool detection, all backends |
-| [`tests/utils/windows-provider.test.ts`](../tests/utils/windows-provider.test.ts) | Windows provider — PowerShell scripts, path escaping |
+| [`tests/utils/windows-provider.test.ts`](../tests/utils/windows-provider.test.ts) | Windows provider — PowerShell scripts, injection prevention |
 | [`tests/architecture/singleton.test.ts`](../tests/architecture/singleton.test.ts) | Singleton semaphore enforcement |
 
 Coverage thresholds are configured in [`vitest.config.ts`](../vitest.config.ts): 50% lines, 40% branches, 50% functions, 50% statements.
