@@ -82,7 +82,7 @@ All subprocess execution uses `execFile` instead of `exec`. This avoids shell in
 Platform-specific protections:
 - **macOS**: The [`SAFE_APP_NAME_PATTERN`](../src/config/index.ts) regex (`/^[a-zA-Z0-9 \-_]+$/`) rejects app names containing characters that could be dangerous in the Swift code template used for CoreGraphics window ID lookup.
 - **Linux**: All tool invocations use `execFile` with argument arrays — no shell interpolation. Window name lookups via `xdotool` also use `execFile`.
-- **Windows**: PowerShell scripts are passed via `-Command` parameter to `execFile('powershell', ...)`. Single quotes in paths are escaped. Window names are sanitized to prevent PowerShell injection.
+- **Windows**: The PowerShell script body is static and passed via `-EncodedCommand` (base64 UTF-16LE) to `execFile('powershell', ...)`. Untrusted values — `outputPath` and `windowName` — are **never interpolated into script text**. They are passed as environment variables (`SS_OUTPUT_PATH`, `SS_WINDOW_NAME`) through `execFile`'s `env` option and read in the script as `$env:SS_OUTPUT_PATH` / `$env:SS_WINDOW_NAME`, which PowerShell treats as data and never re-parses as code. Escaping is not a viable alternative: PowerShell's tokenizer also treats U+2018–U+201B as single quotes and U+201C–U+201E as double quotes, so doubling ASCII `'` cannot keep a value inside a string literal. Window titles are matched as a literal, case-insensitive substring (`String.IndexOf` with `OrdinalIgnoreCase`), so wildcard characters in `windowName` have no special meaning. Numeric inputs (display index, region coordinates, `windowId`) are validated as integers by the tool's Zod schema before being placed in the script.
 
 ---
 

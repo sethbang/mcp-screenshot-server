@@ -75,12 +75,12 @@ $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 ${opts.includeCursor ? '$cursorPos = [System.Windows.Forms.Cursor]::Position\n' : ''}
 $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
 ${opts.includeCursor ? this.cursorDrawScript() : ''}
-$bitmap.Save('${this.escapePath(opts.outputPath)}', [System.Drawing.Imaging.ImageFormat]::${format})
+$bitmap.Save($env:SS_OUTPUT_PATH, [System.Drawing.Imaging.ImageFormat]::${format})
 $graphics.Dispose()
 $bitmap.Dispose()
 `.trim();
 
-    await this.runPowerShell(script);
+    await this.runPowerShell(script, { SS_OUTPUT_PATH: opts.outputPath });
   }
 
   async captureWindow(opts: CaptureOptions & WindowTarget): Promise<void> {
@@ -95,8 +95,9 @@ $bitmap.Dispose()
     // Use windowName to find the process, or windowId as HWND
     const findWindowScript = opts.windowName
       ? `
-$proc = Get-Process | Where-Object { $_.MainWindowTitle -like '*${this.escapeString(opts.windowName)}*' -and $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-if (-not $proc) { throw "Window not found: ${this.escapeString(opts.windowName)}" }
+$windowName = $env:SS_WINDOW_NAME
+$proc = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle.IndexOf($windowName, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 } | Select-Object -First 1
+if (-not $proc) { throw "Window not found: $windowName" }
 $hwnd = $proc.MainWindowHandle
 `
       : `$hwnd = [IntPtr]::new(${opts.windowId})`;
@@ -129,12 +130,15 @@ if ($width -le 0 -or $height -le 0) { throw "Invalid window dimensions" }
 $bitmap = New-Object System.Drawing.Bitmap($width, $height)
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, (New-Object System.Drawing.Size($width, $height)))
-$bitmap.Save('${this.escapePath(opts.outputPath)}', [System.Drawing.Imaging.ImageFormat]::${format})
+$bitmap.Save($env:SS_OUTPUT_PATH, [System.Drawing.Imaging.ImageFormat]::${format})
 $graphics.Dispose()
 $bitmap.Dispose()
 `.trim();
 
-    await this.runPowerShell(script);
+    await this.runPowerShell(script, {
+      SS_OUTPUT_PATH: opts.outputPath,
+      ...(opts.windowName ? { SS_WINDOW_NAME: opts.windowName } : {}),
+    });
   }
 
   async captureRegion(opts: CaptureOptions & RegionTarget): Promise<void> {
@@ -148,17 +152,25 @@ Add-Type -AssemblyName System.Drawing
 $bitmap = New-Object System.Drawing.Bitmap(${opts.width}, ${opts.height})
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 $graphics.CopyFromScreen(${opts.x}, ${opts.y}, 0, 0, (New-Object System.Drawing.Size(${opts.width}, ${opts.height})))
-$bitmap.Save('${this.escapePath(opts.outputPath)}', [System.Drawing.Imaging.ImageFormat]::${format})
+$bitmap.Save($env:SS_OUTPUT_PATH, [System.Drawing.Imaging.ImageFormat]::${format})
 $graphics.Dispose()
 $bitmap.Dispose()
 `.trim();
 
-    await this.runPowerShell(script);
+    await this.runPowerShell(script, { SS_OUTPUT_PATH: opts.outputPath });
   }
 
   // ── Private helpers ────────────────────────────────────────────────────
 
-  private async runPowerShell(script: string): Promise<void> {
+  /**
+   * Run a static PowerShell script. Untrusted values (paths, window names) are
+   * never interpolated into the script text: PowerShell's tokenizer treats
+   * U+2018–U+201B as single quotes and U+201C–U+201E as double quotes, so
+   * escaping ASCII quotes alone cannot keep them inside a string literal.
+   * Instead they are passed as environment variables and read via `$env:NAME`,
+   * which PowerShell never re-parses as code (SEC-003).
+   */
+  private async runPowerShell(script: string, vars: Record<string, string>): Promise<void> {
     const cmd = this.powershellPath ?? 'powershell';
     const encoded = Buffer.from(script, 'utf16le').toString('base64');
     await execFileAsync(cmd, [
@@ -166,7 +178,7 @@ $bitmap.Dispose()
       '-NoProfile',
       '-NonInteractive',
       '-EncodedCommand', encoded,
-    ]);
+    ], { env: { ...process.env, ...vars } });
   }
 
   private dotNetFormat(format?: 'png' | 'jpg'): string {
@@ -174,16 +186,6 @@ $bitmap.Dispose()
       case 'jpg': return 'Jpeg';
       default: return 'Png';
     }
-  }
-
-  private escapePath(p: string): string {
-    // Escape single quotes for PowerShell string literals
-    return p.replace(/'/g, "''");
-  }
-
-  private escapeString(s: string): string {
-    // Escape characters that could break PowerShell string interpolation
-    return s.replace(/'/g, "''").replace(/[`$"]/g, '');
   }
 
   private cursorDrawScript(): string {
