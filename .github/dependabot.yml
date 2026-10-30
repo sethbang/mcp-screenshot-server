@@ -7,6 +7,16 @@ updates:
       day: monday
     open-pull-requests-limit: 10
     groups:
+      # vitest and @vitest/coverage-v8 peer-pin each other to the exact same
+      # version, so they must move together, majors included. The
+      # dev-dependencies group below takes only minor/patch, so without this a
+      # vitest major arrives as two separate PRs that each fail npm ci with
+      # ERESOLVE (as #60 and #61 did for vitest 5). Dependabot assigns a
+      # dependency to the first group it matches, so this must stay first.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
       dev-dependencies:
         dependency-type: development
         update-types:
