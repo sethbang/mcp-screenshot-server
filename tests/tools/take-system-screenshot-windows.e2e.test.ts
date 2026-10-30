@@ -146,24 +146,33 @@ describe.skipIf(!isWindows)('take_system_screenshot — Windows real capture', (
         'powershell',
         [
           '-NoProfile', '-NonInteractive', '-Command',
+          // Title the console too: whichever window Windows reports as the
+          // process's main window (console or form), it carries the test title.
+          '$Host.UI.RawUI.WindowTitle = $env:E2E_TITLE; ' +
           'Add-Type -AssemblyName System.Windows.Forms; ' +
           '$f = New-Object System.Windows.Forms.Form; ' +
           '$f.Text = $env:E2E_TITLE; $f.Width = 400; $f.Height = 300; ' +
           '[System.Windows.Forms.Application]::Run($f)',
         ],
-        // windowsHide hides the console, so the form is the process's main window
-        { env: { ...process.env, E2E_TITLE: title }, windowsHide: true, stdio: 'ignore' },
+        // No windowsHide: Windows applies the startup show-state (SW_HIDE) to the
+        // process's first ShowWindow call, which would hide the form as well.
+        { env: { ...process.env, E2E_TITLE: title }, windowsHide: false, stdio: 'ignore' },
       );
 
-      // Wait until Get-Process reports the form as a main window
+      // Wait until Get-Process reports a main window with the test title
       const deadline = Date.now() + 30_000;
       for (;;) {
         const count = await runPowerShell(
           '@(Get-Process | Where-Object { $_.MainWindowTitle -eq $env:E2E_TITLE }).Count',
           { E2E_TITLE: title },
         );
-        if (count === '1') break;
-        if (Date.now() > deadline) throw new Error(`Test window "${title}" never appeared`);
+        if (Number(count) >= 1) break;
+        if (Date.now() > deadline) {
+          const visible = await runPowerShell(
+            "(Get-Process | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object { $_.ProcessName + ': ' + $_.MainWindowTitle }) -join '; '",
+          ).catch((e) => `<listing failed: ${e}>`);
+          throw new Error(`Test window "${title}" never appeared. Main windows: ${visible || '<none>'}`);
+        }
         await new Promise((r) => setTimeout(r, 500));
       }
     }, 45_000);
