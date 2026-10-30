@@ -17,8 +17,12 @@ export const MAX_CONCURRENT_SCREENSHOTS = 3;
  * waits and capture. When it fires the browser is force-killed so the
  * semaphore permit is always returned. SEC-005: a page that wedges Chromium
  * (e.g. via window.open()) must not hold a permit forever.
+ *
+ * Must stay above the sum of the per-step budgets in take-screenshot.ts —
+ * goto (30s) + waitForSelector (30s) + waitForTimeout (schema max 30s) — plus
+ * launch and capture time, or a legitimate slow page is killed mid-capture.
  */
-export const SCREENSHOT_DEADLINE_MS = 90_000;
+export const SCREENSHOT_DEADLINE_MS = 120_000;
 
 /**
  * When true, allows loopback addresses (127.x.x.x, ::1, localhost) in URL validation.

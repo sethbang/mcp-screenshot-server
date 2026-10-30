@@ -151,9 +151,25 @@ Each Puppeteer browser instance spawns a Chromium process consuming 100–500 MB
 - A singleton [`Semaphore`](../src/utils/semaphore.ts) limits concurrent instances to **3** ([`MAX_CONCURRENT_SCREENSHOTS`](../src/config/index.ts))
 - The tool uses `tryAcquire()` (non-blocking) — if at capacity, the request is immediately rejected rather than queued
 - The semaphore permit is always released in a `finally` block, and the browser is closed **before** the permit is released to avoid briefly exceeding the limit
+- **Overall deadline.** Some Puppeteer calls (notably `page.screenshot()`) have no timeout of their own, and a page can wedge them indefinitely. Each `take_screenshot` call therefore races against a hard **120 s** deadline ([`SCREENSHOT_DEADLINE_MS`](../src/config/index.ts)). It sits above the 90 s that the per-step limits can add up to (navigation 30 s, `waitForSelector` 30 s, `waitForTimeout` up to 30 s), so it only fires when something is actually stuck. When it fires, the Chromium process is SIGKILLed rather than closed gracefully, and the permit is released. If the deadline fires while `puppeteer.launch()` is still pending, the browser is killed as soon as launch returns.
+- **Close fallback.** A graceful `browser.close()` that takes longer than 5 s is abandoned and the process is SIGKILLed, so a hung close cannot hold the permit either.
 - An ESLint rule prevents accidental creation of additional `Semaphore` instances outside of [`src/config/runtime.ts`](../src/config/runtime.ts)
 
 The `take_system_screenshot` tool does **not** use a semaphore because native screenshot tools are lightweight (< 100 ms, < 10 MB) across all platforms.
+
+---
+
+## SEC-006: Popup Blocking
+
+**Files:** [`src/tools/take-screenshot.ts`](../src/tools/take-screenshot.ts)
+
+Puppeteer launches Chromium with `--disable-popup-blocking` by default. That let a page open new windows with `window.open()`, a `target="_blank"` link or form, or the same from inside an iframe. Each popup is a separate target, and the page's request interceptor ([SEC-001](#redirect-and-frame-validation)) never sees its requests. Popups could therefore reach loopback and internal addresses with no SSRF validation at all. An open popup could also make `page.screenshot()` hang forever (see [SEC-005](#sec-005-denial-of-service-protection)).
+
+- The tool launches Chromium with `ignoreDefaultArgs: ['--disable-popup-blocking']`, so Chromium's own popup blocker stays on. The tool never generates a user gesture, so the blocker stops every popup.
+- As defense in depth, a `targetcreated` listener closes any new target that has an opener.
+- An integration test covers `window.open()`, an anchor click, a form submit and an iframe-originated popup. It asserts that no popup request reaches the server, that the call returns promptly and that the permit is released.
+
+**Residual risk:** the `targetcreated` close is a fallback only. It runs after the popup target exists, so the popup's first request may already have been sent. The popup blocker is the control that actually stops popup requests.
 
 ---
 
