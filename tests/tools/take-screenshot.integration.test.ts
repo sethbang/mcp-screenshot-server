@@ -59,6 +59,8 @@ vi.mock('../../src/validators/url.js', () => ({
       return { valid: false, error: 'Invalid URL format' };
     }
   }),
+  // The test server lives on loopback; treat every connected IP as allowed.
+  isBlockedIp: vi.fn().mockReturnValue({ blocked: false }),
 }));
 
 // Capture the handler via McpServer mock

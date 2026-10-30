@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **SSRF: IP validation is now an allow-list.** `src/validators/url.ts` parses addresses and accepts only globally reachable unicast. Newly blocked: `::` (unspecified), IPv4-compatible `::/96` (e.g. `::127.0.0.1`), NAT64 `64:ff9b::/96` and 6to4 `2002::/16` addresses that wrap a blocked IPv4 address, IPv6 multicast and other non-`2000::/3` space, IPv6 documentation/Teredo/benchmarking blocks, and IPv4 `224.0.0.0/4` (multicast), `240.0.0.0/4` (reserved), `192.0.0.0/24`, `192.88.99.0/24`, and the TEST-NETs. The `ALLOW_LOCAL` exception still re-opens loopback only.
+- **SSRF: DNS rebinding on redirect and iframe hostnames.** Chromium re-resolves hostnames it was not pinned to, so `take_screenshot` now checks the address Chromium actually connected to for every navigation response and refuses to return a screenshot if any is blocked. Remaining limits are documented in `docs/SECURITY.md`.
+- A DNS answer with no usable IPv4/IPv6 address is now rejected instead of being accepted without an IP pin.
+- New export `isBlockedIp(ip, { allowLocal, family })`: a fail-closed check for either address family.
+
 ## [1.4.0] - 2026-08-24
 
 ### Changed

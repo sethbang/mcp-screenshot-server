@@ -23,6 +23,11 @@ vi.mock('../../src/config/index.js', () => ({
 
 vi.mock('../../src/validators/url.js', () => ({
   validateUrl: vi.fn(),
+  isBlockedIp: vi.fn(),
+}));
+
+vi.mock('node:fs/promises', () => ({
+  unlink: vi.fn(),
 }));
 
 vi.mock('../../src/validators/path.js', () => ({
@@ -62,11 +67,14 @@ vi.mock('puppeteer', () => ({
 }));
 
 import puppeteer from 'puppeteer';
-import { validateUrl } from '../../src/validators/url.js';
+import { unlink } from 'node:fs/promises';
+import { validateUrl, isBlockedIp } from '../../src/validators/url.js';
 import { validateOutputPath } from '../../src/validators/path.js';
 
 const mockLaunch = vi.mocked(puppeteer.launch);
 const mockValidateUrl = vi.mocked(validateUrl);
+const mockIsBlockedIp = vi.mocked(isBlockedIp);
+const mockUnlink = vi.mocked(unlink);
 const mockValidateOutputPath = vi.mocked(validateOutputPath);
 
 // Capture the handler via McpServer mock
@@ -97,6 +105,9 @@ describe('take-screenshot', () => {
     mockPage.on.mockReturnValue(undefined);
     mockPage.goto.mockResolvedValue(undefined);
     mockPage.screenshot.mockResolvedValue(undefined);
+    mockUnlink.mockResolvedValue(undefined);
+    mockIsBlockedIp.mockImplementation((ip: string) =>
+      ip === '10.0.0.5' ? { blocked: true, reason: 'private network' } : { blocked: false });
   });
 
   it('returns error when URL validation fails', async () => {
@@ -246,5 +257,78 @@ describe('take-screenshot', () => {
         '--host-resolver-rules=MAP ipv6host.example [2001:db8::1]',
       ]),
     }));
+  });
+
+  describe('navigation response IP check (DNS rebinding on redirects/iframes)', () => {
+    function fakeResponse(url: string, ip: string | undefined, isNavigation = true) {
+      return {
+        url: () => url,
+        remoteAddress: () => ({ ip, port: 443 }),
+        request: () => ({ isNavigationRequest: () => isNavigation }),
+      };
+    }
+
+    /** Emit the given responses through the page's 'response' listener. */
+    function emitResponses(...responses: ReturnType<typeof fakeResponse>[]) {
+      const call = mockPage.on.mock.calls.find(([event]) => event === 'response');
+      expect(call).toBeDefined();
+      for (const res of responses) (call![1] as (r: unknown) => void)(res);
+    }
+
+    beforeEach(() => {
+      mockValidateUrl.mockResolvedValueOnce({
+        valid: true,
+        resolvedIp: '93.184.216.34',
+        hostname: 'example.com',
+      });
+      mockValidateOutputPath.mockResolvedValueOnce({
+        valid: true,
+        path: '/home/user/Desktop/Screenshots/screenshot.png',
+      });
+    });
+
+    it('fails when a redirect hop connected to a blocked IP', async () => {
+      mockPage.goto.mockImplementationOnce(async () => {
+        emitResponses(
+          fakeResponse('https://example.com/', '93.184.216.34'),
+          fakeResponse('https://rebind.example/', '10.0.0.5'),
+        );
+      });
+
+      const result = await capturedHandler({ url: 'https://example.com' });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('rebind.example');
+      expect(result.content[0].text).toContain('10.0.0.5');
+      expect(mockPage.screenshot).not.toHaveBeenCalled();
+      expect(mockSemaphore.release).toHaveBeenCalled();
+    });
+
+    it('deletes the file when a blocked navigation lands during capture', async () => {
+      mockPage.screenshot.mockImplementationOnce(async () => {
+        emitResponses(fakeResponse('https://iframe.example/', '10.0.0.5'));
+      });
+
+      const result = await capturedHandler({ url: 'https://example.com' });
+
+      expect(result.isError).toBe(true);
+      expect(mockUnlink).toHaveBeenCalledWith('/home/user/Desktop/Screenshots/screenshot.png');
+    });
+
+    it('ignores subresource responses and responses without a remote address', async () => {
+      mockPage.goto.mockImplementationOnce(async () => {
+        emitResponses(
+          fakeResponse('https://example.com/', '93.184.216.34'),
+          fakeResponse('https://cdn.example/img.png', '10.0.0.5', false),
+          fakeResponse('about:blank', undefined),
+        );
+      });
+
+      const result = await capturedHandler({ url: 'https://example.com' });
+
+      expect(result.content[0].text).toContain('Screenshot saved');
+      expect(mockIsBlockedIp).toHaveBeenCalledTimes(1);
+      expect(mockIsBlockedIp).toHaveBeenCalledWith('93.184.216.34', { allowLocal: false });
+    });
   });
 });

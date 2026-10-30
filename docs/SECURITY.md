@@ -25,51 +25,74 @@ Only `http:` and `https:` protocols are permitted. The validator blocks:
 - `localhost` and `localhost.localdomain` by hostname
 - IPv6 loopback (`::1`) in bracket notation
 
-### IP Range Blocking
+### IP Address Policy
 
-All resolved IP addresses are checked against comprehensive blocklists:
+Every IP address — a literal in the URL, every address DNS returns, and the address Chromium actually connected to for each navigation — must be **globally reachable unicast**. Anything else is rejected. Checks are done on parsed addresses ([`isBlockedIp()`](../src/validators/url.ts)), not on string prefixes, so alternative spellings (`::127.0.0.1`, `0:0:0:0:0:0:0:0`, `64:ff9b::169.254.169.254`) are classified the same as their canonical forms.
 
-**IPv4 blocked ranges:**
+**IPv4 blocked ranges** (every non-globally-reachable block in the IANA special-purpose registry, plus multicast and reserved space; everything else is public unicast):
 
 | Range               | Description                    |
 |---------------------|--------------------------------|
-| `127.0.0.0/8`      | Loopback                       |
+| `0.0.0.0/8`        | "This network" (`0.0.0.0` reaches the local host) |
 | `10.0.0.0/8`       | Private (Class A)              |
-| `172.16.0.0/12`    | Private (Class B)              |
-| `192.168.0.0/16`   | Private (Class C)              |
-| `169.254.0.0/16`   | Link-local / cloud metadata    |
-| `0.0.0.0/8`        | Current network                |
 | `100.64.0.0/10`    | CGNAT / shared address space   |
+| `127.0.0.0/8`      | Loopback                       |
+| `169.254.0.0/16`   | Link-local / cloud metadata    |
+| `172.16.0.0/12`    | Private (Class B)              |
+| `192.0.0.0/24`     | IETF protocol assignments      |
+| `192.0.2.0/24`     | Documentation (TEST-NET-1)     |
+| `192.88.99.0/24`   | 6to4 relay anycast (deprecated) |
+| `192.168.0.0/16`   | Private (Class C)              |
 | `198.18.0.0/15`    | Benchmark testing              |
-| `255.255.255.255`  | Broadcast                      |
+| `198.51.100.0/24`  | Documentation (TEST-NET-2)     |
+| `203.0.113.0/24`   | Documentation (TEST-NET-3)     |
+| `224.0.0.0/4`      | Multicast                      |
+| `240.0.0.0/4`      | Reserved, incl. broadcast `255.255.255.255` |
 
-**IPv6 blocked ranges:**
+**IPv6 policy** — an allow-list: only global unicast (`2000::/3`) is accepted, minus its special-purpose blocks. Formats that carry an IPv4 address and are routed to it are unwrapped, and the embedded address is re-checked against the IPv4 table above.
 
-| Range             | Description                        |
-|-------------------|------------------------------------|
-| `::1`             | Loopback                           |
-| `fe80::/10`       | Link-local                         |
-| `fc00::/7`        | Unique local (ULA)                 |
-| `::ffff:x.x.x.x` | IPv4-mapped (checked against IPv4 blocklist) |
+| Range                 | Treatment                                              |
+|-----------------------|--------------------------------------------------------|
+| `::`                  | Blocked — unspecified (connecting to it reaches the local host) |
+| `::1`                 | Blocked — loopback                                     |
+| `::ffff:0:0/96`       | IPv4-mapped — embedded IPv4 re-checked                 |
+| `::/96` (other)       | Blocked — deprecated IPv4-compatible (e.g. `::127.0.0.1`) |
+| `64:ff9b::/96`        | NAT64 well-known prefix — embedded IPv4 re-checked (public targets stay reachable on DNS64/NAT64 networks) |
+| `2002::/16`           | 6to4 — embedded IPv4 re-checked                        |
+| `2001::/23`           | Blocked — IETF protocol assignments (Teredo, benchmarking, ORCHID) |
+| `2001:db8::/32`, `3fff::/20` | Blocked — documentation                         |
+| `5f00::/16`           | Blocked — SRv6 SIDs                                    |
+| Everything outside `2000::/3` | Blocked — incl. link-local `fe80::/10`, ULA `fc00::/7`, multicast `ff00::/8`, local-use NAT64 `64:ff9b:1::/48`, discard `100::/64` |
+
+**`ALLOW_LOCAL=true`** re-opens loopback only: `127.0.0.0/8`, `::1`, and IPv4-mapped loopback (`::ffff:127.x.x.x`). Unspecified addresses (`0.0.0.0`, `::`) and loopback wrapped in IPv4-compatible, NAT64 or 6to4 form stay blocked, as do all private, link-local and metadata ranges.
 
 ### DNS Rebinding Defense
 
 When a hostname (not a literal IP) is provided:
 
 1. The server resolves **all** A and AAAA records via [`dns.lookup()`](../src/validators/url.ts)
-2. Every resolved address is checked against the blocklists above
-3. If **any** address is blocked, the entire request is rejected
+2. Every resolved address is checked against the policy above
+3. If **any** address is blocked — or none is a usable IPv4/IPv6 address — the entire request is rejected
 4. The first safe resolved IP is returned as `resolvedIp`
 5. Puppeteer is launched with `--host-resolver-rules=MAP <hostname> <resolvedIp>` to **pin** the IP, preventing the browser from re-resolving the domain to a different (potentially internal) address
 
-### Redirect Validation
+### Redirect and Frame Validation
 
-Puppeteer's request interception validates navigation redirects:
+Puppeteer's request interception validates every navigation request — main-frame redirects and iframe loads alike:
 
 - The original validated URL passes through without re-validation
-- Any redirect target is validated through the full [`validateUrl()`](../src/validators/url.ts) pipeline
-- Blocked redirects are aborted with `blockedbyclient`
+- Any other navigation target is validated through the full [`validateUrl()`](../src/validators/url.ts) pipeline
+- Blocked navigations are aborted with `blockedbyclient`
 - Sub-resource requests (images, scripts, CSS) are allowed through — they don't pose the same SSRF risk as navigation redirects
+
+**Connected-address check.** `--host-resolver-rules` is fixed at launch and pins only the original hostname, so Chromium resolves redirect and iframe hostnames itself, *after* the Node-side check. A rebinding DNS server can answer Node with a public address and Chromium with an internal one. To catch this, the tool inspects the address Chromium actually connected to (`HTTPResponse.remoteAddress()`) for every navigation response, including each redirect hop, and checks it against the same policy. If any is blocked, no screenshot is returned: the capture fails before the screenshot is taken, and a file written while a late navigation was in flight is deleted.
+
+### Residual Risk
+
+- **Blind requests still go out.** The connected-address check runs on the *response*. A rebinding redirect or iframe hostname still causes Chromium to send one request to the internal address; its content never reaches the caller, but any side effect of that GET on the internal service has already happened. Closing this fully would need Chromium to stop resolving names itself (e.g. routing all traffic through a validating proxy), which this server does not do.
+- **Sub-resources are not checked.** Images, scripts, stylesheets and `fetch()` calls are neither validated nor pinned, so a page can load (and render, e.g. as an `<img>`) content from internal hosts. Chromium's own Private Network Access restrictions are the only control here.
+- **Network-specific NAT64 prefixes.** Only the well-known `64:ff9b::/96` prefix is unwrapped. An operator-assigned NAT64 prefix inside `2000::/3` looks like ordinary global unicast, so on such a network an AAAA record that embeds an internal IPv4 address is not detected.
+- **Responses without a remote address** (served from cache, a service worker, or a non-network scheme) cannot be checked. Each capture uses a fresh browser profile, so there is no cache or service worker from a previous run.
 
 ---
 
@@ -138,6 +161,6 @@ The `take_system_screenshot` tool does **not** use a semaphore because native sc
 | Principle            | Application                                                                 |
 |----------------------|-----------------------------------------------------------------------------|
 | **Fail closed**      | DNS errors, unresolvable paths, and unexpected exceptions all result in rejection |
-| **Defense in depth** | Multiple independent checks (URL validation → DNS resolution → IP pinning → redirect validation) |
+| **Defense in depth** | Multiple independent checks (URL validation → DNS resolution → IP pinning → redirect validation → connected-address check) |
 | **Least privilege**  | Only allowed output directories; only http/https protocols; only safe app name characters |
 | **No shell access**  | All subprocess calls use `execFile`, never `exec` or `spawn` with `shell: true` |
