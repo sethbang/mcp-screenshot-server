@@ -17,7 +17,7 @@ npm run build            # TypeScript → build/ (also runs on npm install via "
 npm run watch            # Recompile on change
 npm test                 # Unit tests only (fast, fully mocked)
 npm run test:integration # Integration tests (real DNS, real filesystem)
-npm run test:e2e         # E2E tests (real Puppeteer, real screencapture)
+npm run test:e2e         # E2E tests (real Puppeteer, real screencapture; run `npm run build` first)
 npm run test:all         # All tiers together
 npm run test:linux       # Linux e2e via Docker (Xvfb + maim/scrot/import)
 npm run test:watch       # Watch mode
