@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **`take_screenshot`: block popups (SSRF bypass).** Puppeteer disables Chromium's popup blocker by default, so a page could call `window.open()` (or click a `target="_blank"` link / submit a `target="_blank"` form) to send a request to a loopback or internal address. Popup navigations happen in a new target and never pass through the page's request interceptor, so they skipped SSRF validation entirely. The blocker is now kept on (`ignoreDefaultArgs: ['--disable-popup-blocking']`), and any popup target that gets through anyway is closed.
+- **`take_screenshot`: overall deadline (hang / permit lockout).** An open popup could make `page.screenshot()` hang forever. The semaphore permit was never released and Chromium was orphaned, so three such calls locked the tool permanently. Each call now has a hard 90 s deadline (`SCREENSHOT_DEADLINE_MS`). When it fires, the browser is SIGKILLed and the permit released. A normal `browser.close()` that hangs for more than 5 s also falls back to SIGKILL.
+
 ## [1.4.0] - 2026-08-24
 
 ### Changed

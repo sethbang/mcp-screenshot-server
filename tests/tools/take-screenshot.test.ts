@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock config/runtime before imports
 const mockSemaphore = {
@@ -19,6 +19,7 @@ vi.mock('../../src/config/index.js', () => ({
   ALLOWED_OUTPUT_DIRS: ['/home/user/Desktop/Screenshots', '/tmp'],
   MAX_CONCURRENT_SCREENSHOTS: 3,
   ALLOW_LOCAL: false,
+  SCREENSHOT_DEADLINE_MS: 1000,
 }));
 
 vi.mock('../../src/validators/url.js', () => ({
@@ -47,9 +48,16 @@ const mockPage = {
   screenshot: vi.fn(),
 };
 
+const mockProcess = {
+  exitCode: null as number | null,
+  signalCode: null as string | null,
+  kill: vi.fn(),
+};
+
 const mockBrowser = {
   newPage: vi.fn().mockResolvedValue(mockPage),
   close: vi.fn(),
+  on: vi.fn(),
 };
 
 vi.mock('puppeteer', () => ({
@@ -57,6 +65,8 @@ vi.mock('puppeteer', () => ({
     launch: vi.fn().mockResolvedValue({
       newPage: () => mockBrowser.newPage(),
       close: () => mockBrowser.close(),
+      on: (...args: unknown[]) => mockBrowser.on(...args),
+      process: () => mockProcess,
     }),
   },
 }));
@@ -97,7 +107,25 @@ describe('take-screenshot', () => {
     mockPage.on.mockReturnValue(undefined);
     mockPage.goto.mockResolvedValue(undefined);
     mockPage.screenshot.mockResolvedValue(undefined);
+    mockProcess.exitCode = null;
+    mockProcess.signalCode = null;
   });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function validInputs() {
+    mockValidateUrl.mockResolvedValueOnce({
+      valid: true,
+      resolvedIp: '93.184.216.34',
+      hostname: 'example.com',
+    });
+    mockValidateOutputPath.mockResolvedValueOnce({
+      valid: true,
+      path: '/home/user/Desktop/Screenshots/screenshot.png',
+    });
+  }
 
   it('returns error when URL validation fails', async () => {
     mockValidateUrl.mockResolvedValueOnce({
@@ -246,5 +274,100 @@ describe('take-screenshot', () => {
         '--host-resolver-rules=MAP ipv6host.example [2001:db8::1]',
       ]),
     }));
+  });
+
+  it('keeps Chromium\'s popup blocker enabled', async () => {
+    validInputs();
+
+    await capturedHandler({ url: 'https://example.com' });
+
+    expect(mockLaunch).toHaveBeenCalledWith(expect.objectContaining({
+      ignoreDefaultArgs: expect.arrayContaining(['--disable-popup-blocking']),
+    }));
+  });
+
+  it('closes any popup target that slips past the blocker', async () => {
+    validInputs();
+
+    await capturedHandler({ url: 'https://example.com' });
+
+    const handler = mockBrowser.on.mock.calls.find(([event]) => event === 'targetcreated')?.[1];
+    expect(handler).toBeTypeOf('function');
+
+    const popupPage = { close: vi.fn().mockResolvedValue(undefined) };
+    handler({ opener: () => ({}), page: () => Promise.resolve(popupPage) });
+    const ownPage = { close: vi.fn() };
+    handler({ opener: () => undefined, page: () => Promise.resolve(ownPage) });
+    await Promise.resolve(); await Promise.resolve();
+
+    expect(popupPage.close).toHaveBeenCalled();
+    expect(ownPage.close).not.toHaveBeenCalled();
+  });
+
+  it('kills the browser and releases the permit when the deadline passes', async () => {
+    vi.useFakeTimers();
+    validInputs();
+    // Simulates the popup wedge: screenshot() never settles
+    mockPage.screenshot.mockReturnValueOnce(new Promise(() => {}));
+
+    const pending = capturedHandler({ url: 'https://example.com' });
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await pending;
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('timed out after 1000ms');
+    // Graceful close is skipped on timeout — it would likely hang too
+    expect(mockBrowser.close).not.toHaveBeenCalled();
+    expect(mockProcess.kill).toHaveBeenCalledWith('SIGKILL');
+    expect(mockSemaphore.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('kills the browser when the deadline passes during launch', async () => {
+    vi.useFakeTimers();
+    validInputs();
+    let finishLaunch!: () => void;
+    mockLaunch.mockImplementationOnce(() => new Promise(resolve => {
+      finishLaunch = () => resolve({
+        newPage: () => mockBrowser.newPage(),
+        close: () => mockBrowser.close(),
+        on: (...args: unknown[]) => mockBrowser.on(...args),
+        process: () => mockProcess,
+      } as any);
+    }));
+
+    const pending = capturedHandler({ url: 'https://example.com' });
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await pending;
+    expect(result.content[0].text).toContain('timed out');
+    expect(mockSemaphore.release).toHaveBeenCalledTimes(1);
+
+    // Launch completes after the handler has already returned — no orphan
+    finishLaunch();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockProcess.kill).toHaveBeenCalledWith('SIGKILL');
+    expect(mockBrowser.newPage).not.toHaveBeenCalled();
+  });
+
+  it('falls back to SIGKILL when browser.close() hangs', async () => {
+    vi.useFakeTimers();
+    validInputs();
+    mockBrowser.close.mockReturnValueOnce(new Promise(() => {}));
+
+    const pending = capturedHandler({ url: 'https://example.com' });
+    await vi.advanceTimersByTimeAsync(5000);
+    const result = await pending;
+
+    expect(result.content[0].text).toContain('Screenshot saved');
+    expect(mockProcess.kill).toHaveBeenCalledWith('SIGKILL');
+    expect(mockSemaphore.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not signal a browser process that already exited', async () => {
+    validInputs();
+    mockBrowser.close.mockImplementationOnce(async () => { mockProcess.exitCode = 0; });
+
+    await capturedHandler({ url: 'https://example.com' });
+
+    expect(mockProcess.kill).not.toHaveBeenCalled();
   });
 });

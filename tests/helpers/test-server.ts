@@ -3,6 +3,8 @@ import { createServer, type Server } from 'node:http';
 export interface TestServer {
   /** Base URL including port, e.g. http://127.0.0.1:12345 */
   url: string;
+  /** Every request path the server has received, in arrival order. */
+  requests: string[];
   /** Shut down the server. Call in afterAll. */
   close: () => Promise<void>;
 }
@@ -12,9 +14,11 @@ export interface TestServer {
  * Binds to 127.0.0.1 explicitly so tests can use it with allowLocal.
  */
 export function createTestServer(): Promise<TestServer> {
+  const requests: string[] = [];
   return new Promise((resolve, reject) => {
     const server: Server = createServer((req, res) => {
       const url = req.url ?? '/';
+      requests.push(url);
 
       if (url === '/simple.html') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -32,6 +36,22 @@ export function createTestServer(): Promise<TestServer> {
       } else if (url === '/tall-page.html') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`<html><body><div style="height:5000px;background:linear-gradient(red,blue)">Tall</div></body></html>`);
+      } else if (url === '/popup.html') {
+        // Opens a popup on load. Without popup blocking this both issues an
+        // unvalidated request and wedges page.screenshot() indefinitely.
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`<html><body>Opener
+          <a id="a" href="/popup-target?via=anchor" target="_blank">a</a>
+          <form id="f" action="/popup-target" target="_blank"><input name="via" value="form"></form>
+          <iframe srcdoc="<script>window.open('/popup-target?via=iframe')</script>"></iframe>
+          <script>
+            window.open('/popup-target?via=open');
+            document.getElementById('a').click();
+            document.getElementById('f').submit();
+          </script></body></html>`);
+      } else if (url.startsWith('/popup-target')) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body>Popup</body></html>');
       } else if (url === '/redirect-ok') {
         res.writeHead(302, { Location: '/simple.html' });
         res.end();
@@ -56,6 +76,7 @@ export function createTestServer(): Promise<TestServer> {
       }
       resolve({
         url: `http://127.0.0.1:${addr.port}`,
+        requests,
         close: () => new Promise<void>((res, rej) => server.close(err => err ? rej(err) : res())),
       });
     });
