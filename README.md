@@ -260,7 +260,7 @@ Tests use [Vitest](https://vitest.dev/) in three tiers:
 
 - **Unit** (`npm test`) — Full dependency injection, no real I/O. Fast feedback loop.
 - **Integration** (`npm run test:integration`) — Real DNS resolution, real filesystem with temp directories, real Puppeteer against a local HTTP server.
-- **E2E** (`npm run test:e2e`) — Real native screenshot tools. macOS tests run natively; Linux tests run in Docker via `npm run test:linux`.
+- **E2E** (`npm run test:e2e`) — Real native screenshot tools. macOS tests run natively; Linux tests run in Docker via `npm run test:linux`; Windows tests run on the `windows-latest` CI runner.
 
 ```bash
 npm test                 # Unit tests (~300ms)

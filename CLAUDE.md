@@ -79,3 +79,7 @@ Unit tests use full dependency injection — **no real network, filesystem, or s
 ### Docker-based Linux testing
 
 `npm run test:linux` builds a Docker image (`Dockerfile.linux-test`) with Xvfb, maim, scrot, ImageMagick, and xdotool, then runs the e2e suite inside it. This is the only way to test the Linux screenshot provider locally on macOS.
+
+### Windows e2e in CI
+
+The `Windows E2E` CI job runs `npm run test:e2e` on `windows-latest`, which has a live desktop session. `tests/tools/take-system-screenshot-windows.e2e.test.ts` exercises real PowerShell capture (fullscreen, region, window) and runs PowerShell-injection payloads through the real parser. That file includes a positive control proving the payload executes under the old escaping. There is no local equivalent on macOS; the job is not a required check.

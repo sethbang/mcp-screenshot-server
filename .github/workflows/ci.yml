@@ -63,3 +63,19 @@ jobs:
         run: |
           docker build -f Dockerfile.linux-test -t mcp-screenshot-linux-test .
           docker run --rm mcp-screenshot-linux-test
+
+  # Real PowerShell + System.Drawing capture on a live Windows desktop session.
+  # Not (yet) a required check in the main-branch ruleset.
+  windows-e2e:
+    name: Windows E2E
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run test:e2e
