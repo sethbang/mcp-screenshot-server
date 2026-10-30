@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-29
+
 ### Security
 
 - **Fixed PowerShell injection in the Windows system screenshot provider (SEC-003).** `outputPath` and `windowName` were interpolated into single-quoted PowerShell string literals, escaping only ASCII quotes. PowerShell also treats U+2018–U+201B as single quotes (and U+201C–U+201E as double quotes), so a value such as `x’+$(Start-Process calc)+’.png` broke out of the literal and ran arbitrary commands. These values are now passed as environment variables (`SS_OUTPUT_PATH`, `SS_WINDOW_NAME`) and read via `$env:`, so they never appear in script text. The script body itself is still sent via `-EncodedCommand`.
@@ -145,7 +147,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - IPv6: loopback (::1), link-local (fe80::/10), unique local (fc00::/7), IPv4-mapped addresses
 - App name validation pattern for window capture to prevent injection via Swift code execution
 
-[Unreleased]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/sethbang/mcp-screenshot-server/compare/v1.1.0...v1.1.1
