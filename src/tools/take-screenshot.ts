@@ -1,14 +1,38 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { unlink } from 'node:fs/promises';
-import puppeteer from 'puppeteer';
+import puppeteer, { type Browser } from 'puppeteer';
 import { puppeteerSemaphore, defaultOutDir, ensureDefaultDirectory } from '../config/runtime.js';
-import { ALLOWED_OUTPUT_DIRS, MAX_CONCURRENT_SCREENSHOTS, ALLOW_LOCAL } from '../config/index.js';
+import { ALLOWED_OUTPUT_DIRS, MAX_CONCURRENT_SCREENSHOTS, ALLOW_LOCAL, SCREENSHOT_DEADLINE_MS } from '../config/index.js';
 import { validateUrl, isBlockedIp } from '../validators/url.js';
 import { validateOutputPath } from '../validators/path.js';
 import { ok, err, timestamp, ensureDir } from '../utils/helpers.js';
 
 // Semaphore protects expensive Puppeteer operations
+
+/** How long a graceful browser.close() may take before the process is killed. */
+const BROWSER_CLOSE_GRACE_MS = 5_000;
+
+/**
+ * Close the browser, falling back to SIGKILL if close() hangs or fails.
+ * A wedged Chromium must never keep the caller (and its semaphore permit) waiting.
+ */
+async function shutdownBrowser(browser: Browser, force: boolean): Promise<void> {
+  const proc = browser.process();
+  if (!force) {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        browser.close(),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('close timed out')), BROWSER_CLOSE_GRACE_MS); }),
+      ]);
+    } catch { /* browser may already be dead, or close() hung — kill below */ }
+    finally { clearTimeout(timer); }
+  }
+  if (proc && proc.exitCode === null && proc.signalCode === null) {
+    try { proc.kill('SIGKILL'); } catch { /* already gone */ }
+  }
+}
 
 export function registerTakeScreenshot(server: McpServer): void {
   server.registerTool(
@@ -56,8 +80,11 @@ export function registerTakeScreenshot(server: McpServer): void {
       }
 
       // Declare browser outside try block to ensure cleanup in finally
-      let browser;
-      try {
+      let browser: Browser | undefined;
+      let timedOut = false;
+      let deadlineTimer: NodeJS.Timeout | undefined;
+
+      const capture = async () => {
         // SEC-001: IP pinning to protect against DNS rebinding attacks
         const browserArgs = [
           '--no-sandbox',
@@ -70,8 +97,30 @@ export function registerTakeScreenshot(server: McpServer): void {
             : urlValidation.resolvedIp;
           browserArgs.push(`--host-resolver-rules=MAP ${urlValidation.hostname} ${pinnedIp}`);
         }
-        browser = await puppeteer.launch({ headless: true, args: browserArgs });
-        const page = await browser.newPage();
+        const launched = await puppeteer.launch({
+          headless: true,
+          args: browserArgs,
+          // SEC-006: Puppeteer disables Chromium's popup blocker by default. Keep it
+          // on: a popup's navigation never passes through the page's request
+          // interceptor (an unvalidated, SSRF-capable request), and popups can wedge
+          // page.screenshot() indefinitely. Nothing here supplies a user gesture,
+          // so the blocker stops every window.open() / target=_blank.
+          ignoreDefaultArgs: ['--disable-popup-blocking'],
+        });
+        browser = launched;
+        // The deadline may have fired while launch() was pending; finally{} has
+        // already run, so this browser is ours to kill.
+        if (timedOut) {
+          await shutdownBrowser(launched, true);
+          throw new Error('deadline exceeded during launch');
+        }
+        // SEC-006: Defense in depth — close any popup that slips past the blocker.
+        launched.on('targetcreated', (target) => {
+          if (target.opener()) {
+            target.page().then(p => p?.close()).catch(() => { /* already gone */ });
+          }
+        });
+        const page = await launched.newPage();
         if (width && height) await page.setViewport({ width, height });
 
         // SEC-001: Intercept requests to prevent SSRF via HTTP redirects.
@@ -148,13 +197,30 @@ export function registerTakeScreenshot(server: McpServer): void {
           return err(`URL validation failed: ${blockedNavigation}`);
         }
         return ok(`Screenshot saved: ${dest}`);
+      };
+
+      try {
+        const work = capture();
+        // Once the deadline wins, work's eventual rejection has no listener
+        work.catch(() => { /* handled via the race below */ });
+        // SEC-005: Overall deadline. Individual Puppeteer calls (notably
+        // screenshot()) have no timeout of their own and can hang forever.
+        const deadline = new Promise<never>((_, reject) => {
+          deadlineTimer = setTimeout(() => {
+            timedOut = true;
+            reject(new Error(`timed out after ${SCREENSHOT_DEADLINE_MS}ms`));
+          }, SCREENSHOT_DEADLINE_MS);
+        });
+        return await Promise.race([work, deadline]);
       } catch (e) {
         return err(`Screenshot error: ${e instanceof Error ? e.message : e}`);
       } finally {
+        clearTimeout(deadlineTimer);
         // Ensure browser is always closed to prevent resource leaks
-        // Close browser BEFORE releasing semaphore to avoid briefly exceeding concurrency limit
+        // Close browser BEFORE releasing semaphore to avoid briefly exceeding concurrency limit.
+        // On timeout, skip the graceful close (it would likely hang too) and kill outright.
         if (browser) {
-          try { await browser.close(); } catch { /* browser may already be dead */ }
+          await shutdownBrowser(browser, timedOut);
         }
         // SEC-005: Always release permit to prevent deadlock, even on error
         puppeteerSemaphore.release();

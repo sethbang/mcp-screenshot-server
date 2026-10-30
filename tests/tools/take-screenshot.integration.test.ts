@@ -38,6 +38,7 @@ vi.mock('../../src/config/index.js', () => ({
   get ALLOWED_OUTPUT_DIRS() { return [tmp.allowed, tmpdir()]; },
   MAX_CONCURRENT_SCREENSHOTS: 3,
   ALLOW_LOCAL: false,
+  SCREENSHOT_DEADLINE_MS: 20_000,
 }));
 
 // Mock URL validator to allow our local test server.
@@ -192,6 +193,24 @@ describe('take_screenshot — real Puppeteer', () => {
 
     expect(result.isError).toBeUndefined();
     expect(existsSync(`${tmp.allowed}/redirect-ok.png`)).toBe(true);
+  }, 30_000);
+
+  it('blocks window.open() popups without hanging or leaking a permit', async () => {
+    const before = testSemaphore.available;
+    const started = Date.now();
+    const result = await capturedHandler({
+      url: `${server.url}/popup.html`,
+      outputPath: `${tmp.allowed}/popup.png`,
+    });
+
+    // Must return well inside the deadline (the bug: screenshot() never resolved)
+    expect(Date.now() - started).toBeLessThan(20_000);
+    expect(result.isError).toBeUndefined();
+    expect(existsSync(`${tmp.allowed}/popup.png`)).toBe(true);
+    // The popup's URL must never reach the network (SSRF bypass)
+    expect(server.requests.filter(r => r.startsWith('/popup-target'))).toEqual([]);
+    // Permit returned to the pool
+    expect(testSemaphore.available).toBe(before);
   }, 30_000);
 
   it('rejects path traversal in outputPath', async () => {
